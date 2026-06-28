@@ -1,0 +1,1161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>Tenant Portal - Dashboard</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background: #f0f2f5; padding-bottom: 70px; }
+        
+        /* Header */
+        .header {
+            background: #1e3a5f;
+            color: white;
+            padding: 16px 20px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .header h2 { font-size: 18px; }
+        .header .sub { font-size: 12px; opacity: 0.7; margin-top: 2px; }
+        .header .logout {
+            position: absolute;
+            right: 20px;
+            top: 16px;
+            background: rgba(255,255,255,0.15);
+            border: none;
+            color: white;
+            padding: 6px 14px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        
+        /* Container */
+        .container { padding: 16px; max-width: 600px; margin: 0 auto; }
+        
+        /* Account Details Card */
+        .profile-card {
+            background: white;
+            border-radius: 10px;
+            padding: 16px;
+            margin-bottom: 16px;
+            border: 1px solid #e0e0e0;
+        }
+        .profile-card .name { font-size: 18px; font-weight: bold; color: #1e3a5f; }
+        .profile-card .detail { font-size: 13px; color: #555; padding: 3px 0; }
+        .profile-card .detail strong { color: #333; }
+        
+        /* Stats Cards */
+        .stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+        .stat-card {
+            background: white;
+            border-radius: 10px;
+            padding: 14px;
+            text-align: center;
+            border: 1px solid #e0e0e0;
+        }
+        .stat-card .label { font-size: 11px; color: #888; text-transform: uppercase; }
+        .stat-card .value { font-size: 20px; font-weight: bold; color: #1e3a5f; margin-top: 4px; }
+        .stat-card .value.negative { color: #e74c3c; }
+        .stat-card .value.positive { color: #27ae60; }
+        
+        /* Progress Bar */
+        .progress-section {
+            background: white;
+            border-radius: 10px;
+            padding: 16px;
+            margin-bottom: 16px;
+            border: 1px solid #e0e0e0;
+        }
+        .progress-section .progress-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+            color: #555;
+            margin-bottom: 6px;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 10px;
+            background: #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .progress-bar .fill {
+            height: 100%;
+            background: #27ae60;
+            border-radius: 10px;
+            transition: width 0.5s ease;
+        }
+        .progress-bar .fill.overpaid {
+            background: #f39c12;
+        }
+        
+        /* Info Row */
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            background: white;
+            border-radius: 10px;
+            padding: 12px 16px;
+            margin-bottom: 10px;
+            border: 1px solid #e0e0e0;
+        }
+        .info-row .label { font-size: 13px; color: #888; }
+        .info-row .value { font-size: 14px; font-weight: 500; color: #333; }
+        
+        /* Last Payment */
+        .last-payment {
+            background: white;
+            border-radius: 10px;
+            padding: 12px 16px;
+            margin-bottom: 16px;
+            border: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .last-payment .label { font-size: 13px; color: #888; }
+        .last-payment .value { font-size: 14px; font-weight: 500; color: #333; }
+        
+        /* Table */
+        .table-wrapper {
+            overflow-x: auto;
+            background: white;
+            border-radius: 10px;
+            border: 1px solid #e0e0e0;
+            margin-bottom: 16px;
+        }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 400px; }
+        th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #eee; }
+        th { background: #f8f8f8; color: #555; font-weight: 600; font-size: 11px; text-transform: uppercase; }
+        .empty-row td { text-align: center; color: #999; padding: 20px; }
+        
+        /* Pay Button */
+        .pay-btn {
+            position: fixed;
+            bottom: 80px;
+            right: 20px;
+            background: #27ae60;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            font-size: 28px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(39, 174, 96, 0.4);
+            transition: transform 0.2s;
+            z-index: 50;
+        }
+        .pay-btn:hover { transform: scale(1.05); }
+        .pay-btn:active { transform: scale(0.95); }
+        
+        /* Bottom Navigation */
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            display: flex;
+            justify-content: space-around;
+            padding: 8px 0;
+            border-top: 1px solid #e0e0e0;
+            z-index: 100;
+        }
+        .bottom-nav .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-size: 10px;
+            color: #888;
+            cursor: pointer;
+            padding: 4px 12px;
+            border: none;
+            background: none;
+            transition: color 0.2s;
+        }
+        .bottom-nav .nav-item.active { color: #1abc9c; }
+        .bottom-nav .nav-item .icon { font-size: 20px; }
+        .bottom-nav .nav-item .label { margin-top: 2px; }
+        
+        /* Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 200;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            max-width: 420px;
+            width: 100%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .modal-content h3 { margin-bottom: 16px; color: #1e3a5f; font-size: 18px; }
+        .modal-content label { font-size: 13px; font-weight: 500; color: #555; display: block; margin-top: 12px; margin-bottom: 4px; }
+        .modal-content input, .modal-content select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        .modal-content .radio-group {
+            display: flex;
+            gap: 15px;
+            margin: 8px 0;
+        }
+        .modal-content .radio-group label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: normal;
+            font-size: 14px;
+            margin: 0;
+        }
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 18px;
+        }
+        .modal-buttons button {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        .btn-cancel { background: #95a5a6; color: white; }
+        .btn-pay { background: #27ae60; color: white; }
+        .btn-primary { background: #1abc9c; color: white; }
+        
+        /* Hidden sections */
+        .page { display: none; }
+        .page.active { display: block; }
+        
+        /* Responsive */
+        @media (max-width: 480px) {
+            .stats { grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+            .stat-card { padding: 10px; }
+            .stat-card .value { font-size: 16px; }
+            .pay-btn { width: 50px; height: 50px; font-size: 24px; bottom: 75px; right: 15px; }
+            .container { padding: 12px; }
+        }
+        .receipt-btn {
+    background: none;
+    border: none;
+    font-size: 16px;
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 4px;
+    transition: background 0.2s;
+}
+.receipt-btn:hover {
+    background: #f0f0f0;
+}
+.receipt-btn:active {
+    transform: scale(0.9);
+}
+/* Receipt Modal */
+.receipt-modal {
+    max-width: 420px;
+}
+.receipt-modal .receipt-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+}
+.receipt-modal .receipt-label {
+    color: #888;
+}
+.receipt-modal .receipt-value {
+    font-weight: 500;
+    color: #333;
+}
+.receipt-modal .receipt-value.status {
+    color: #27ae60;
+}
+/* Receipt Modal - Admin Style */
+.receipt-modal {
+    max-width: 450px;
+}
+.receipt-modal .receipt-details {
+    margin: 10px 0;
+}
+.receipt-modal .receipt-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 0;
+    font-size: 13px;
+}
+.receipt-modal .receipt-label {
+    color: #666;
+}
+.receipt-modal .receipt-value {
+    font-weight: 500;
+    color: #333;
+}
+.receipt-modal .divider {
+    border-top: 1px dashed #ddd;
+    margin: 10px 0;
+}
+    </style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+    <h2 id="pageTitle">🏠 Dashboard</h2>
+    <div class="sub" id="welcomeText">Welcome, Loading...</div>
+    <button class="logout" onclick="logout()">Logout</button>
+</div>
+
+<!-- Main Container -->
+<div class="container" id="appContainer">
+
+    <!-- ====== DASHBOARD PAGE ====== -->
+    <div class="page active" id="page-dashboard">
+        <!-- Profile Card -->
+        <div class="profile-card" id="profileCard">
+            <div class="name" id="tenantName">Loading...</div>
+            <div class="detail"><strong>Email:</strong> <span id="tenantEmail">-</span></div>
+            <div class="detail"><strong>Phone:</strong> <span id="tenantPhone">-</span></div>
+            <div class="detail"><strong>Account No:</strong> <span id="tenantAccount">-</span></div>
+            <div class="detail"><strong>Property:</strong> <span id="tenantProperty">-</span></div>
+            <div class="detail"><strong>Member Since:</strong> <span id="tenantMemberSince">-</span></div>
+            <div class="detail"><strong>National ID:</strong> <span id="tenantNationalId">-</span></div>
+        </div>
+        
+        <!-- Stats -->
+        <div class="stats">
+            <div class="stat-card">
+                <div class="label">Balance</div>
+                <div class="value" id="statBalance">KES 0</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">Total Billed</div>
+                <div class="value" id="statBilled">KES 0</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">Total Paid</div>
+                <div class="value positive" id="statPaid">KES 0</div>
+            </div>
+        </div>
+        
+        <!-- Progress Bar -->
+        <div class="progress-section">
+            <div class="progress-row">
+                <span>Paid</span>
+                <span id="progressText">0%</span>
+            </div>
+            <div class="progress-bar">
+                <div class="fill" id="progressFill" style="width:0%"></div>
+            </div>
+            <div style="margin-top:6px; font-size:12px; color:#888;">
+                Remaining: <strong id="remainingBalance">KES 0</strong>
+            </div>
+        </div>
+        
+        <!-- Due Date & Last Payment -->
+        <div class="info-row">
+            <span class="label">📅 Due Date</span>
+            <span class="value" id="dueDate">Loading...</span>
+        </div>
+        <div class="last-payment">
+            <div>
+                <div class="label">💳 Last Payment</div>
+                <div style="font-size:12px; color:#888;" id="lastPaymentDate">No payment yet</div>
+            </div>
+            <div class="value" id="lastPaymentAmount">-</div>
+        </div>
+        
+        <!-- Recent Payments Table -->
+        <div style="display:flex; justify-content:space-between; align-items:center; margin: 10px 0 6px;">
+            <h4 style="font-size:14px; color:#333;">Recent Payments</h4>
+        </div>
+        <div class="table-wrapper">
+            <table>
+                <thead><tr><th>Date</th><th>Amount</th><th>Type</th><th>Transaction ID</th> <th>receipt</th></tr></thead>
+                <tbody id="recentPayments">
+                    <tr class="empty-row"><td colspan="4">No payments yet</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ====== PAYMENTS PAGE ====== -->
+    <div class="page" id="page-payments">
+        <h4 style="font-size:16px; color:#333; margin-bottom:10px;">All Payments</h4>
+        <div class="table-wrapper">
+            <table>
+                <thead><tr><th>Date</th><th>Amount</th><th>Type</th><th>Transaction ID</th></tr></thead>
+                <tbody id="recentPayments">
+                    <tr class="empty-row"><td colspan="4">No payments found</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ====== INVOICES PAGE ====== -->
+    <div class="page" id="page-invoices">
+        <h4 style="font-size:16px; color:#333; margin-bottom:10px;">Invoices & Bills</h4>
+        <div class="table-wrapper">
+            <table>
+                <thead><tr><th>Month</th><th>Items</th><th>Total</th><th>Paid</th></tr></thead>
+                <tbody id="allInvoices">
+                    <tr class="empty-row"><td colspan="4">No invoices found</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ====== ACCOUNT SETTINGS PAGE ====== -->
+    <div class="page" id="page-settings">
+        <h4 style="font-size:16px; color:#333; margin-bottom:10px;">Account Settings</h4>
+        <div style="background:white; border-radius:10px; padding:16px; border:1px solid #e0e0e0;">
+            <label>Current Password</label>
+            <input type="password" id="currentPwd" placeholder="Enter current password">
+            <label>New Password</label>
+            <input type="password" id="newPwd" placeholder="Enter new password">
+            <label>Confirm Password</label>
+            <input type="password" id="confirmPwd" placeholder="Confirm new password">
+            <button class="btn-primary" style="width:100%; margin-top:12px; padding:10px; border:none; border-radius:6px; cursor:pointer; font-size:14px;" onclick="changePassword()">Update Password</button>
+            <div id="pwdMsg" style="color:#e74c3c; font-size:13px; margin-top:8px;"></div>
+        </div>
+    </div>
+
+    <!-- ====== UPDATE PHONE PAGE ====== -->
+    <div class="page" id="page-phone">
+        <h4 style="font-size:16px; color:#333; margin-bottom:10px;">Update Phone Number</h4>
+        <div style="background:white; border-radius:10px; padding:16px; border:1px solid #e0e0e0;">
+            <label>Current Phone</label>
+            <input type="tel" id="currentPhone" readonly style="background:#f0f0f0;">
+            <label>New Phone Number</label>
+            <input type="tel" id="newPhone" placeholder="Enter new phone number">
+            <button class="btn-primary" style="width:100%; margin-top:12px; padding:10px; border:none; border-radius:6px; cursor:pointer; font-size:14px;" onclick="updatePhone()">Update Phone</button>
+            <div id="phoneMsg" style="color:#e74c3c; font-size:13px; margin-top:8px;"></div>
+        </div>
+    </div>
+
+</div>
+
+<!-- Pay Button -->
+<button class="pay-btn" id="payBtn" onclick="openPayModal()">💰</button>
+
+<!-- Payment Modal -->
+<div class="modal-overlay" id="payModal">
+    <div class="modal-content">
+        <h3>Make Payment</h3>
+        <label>Select Payment Type</label>
+        <div class="radio-group" id="paymentTypeGroup">
+            <label><input type="radio" name="payType" value="rent" checked> Rent</label>
+            <label><input type="radio" name="payType" value="deposit"> Deposit</label>
+            <label><input type="radio" name="payType" value="penalty"> Penalty</label>
+        </div>
+        <label>Amount (KES)</label>
+        <input type="number" id="payAmount" placeholder="Enter amount" min="1">
+        <label>Phone Number (M-Pesa)</label>
+        <input type="tel" id="payPhone" placeholder="2547XXXXXXXX">
+        <div id="payMsg" style="color:#e74c3c; font-size:13px; margin-top:8px;"></div>
+        <div class="modal-buttons">
+            <button class="btn-cancel" onclick="closePayModal()">Cancel</button>
+            <button class="btn-pay" onclick="initiatePayment()">💰 Pay Now</button>
+        </div>
+    </div>
+</div>
+
+<!-- Bottom Navigation -->
+<div class="bottom-nav">
+    <button class="nav-item active" data-page="dashboard">
+        <span class="icon">🏠</span>
+        <span class="label">Overview</span>
+    </button>
+    <button class="nav-item" data-page="payments">
+        <span class="icon">💳</span>
+        <span class="label">Payments</span>
+    </button>
+    <button class="nav-item" data-page="invoices">
+        <span class="icon">📄</span>
+        <span class="label">Invoices</span>
+    </button>
+    <button class="nav-item" data-page="settings">
+        <span class="icon">⚙️</span>
+        <span class="label">Settings</span>
+    </button>
+    <button class="nav-item" data-page="phone">
+        <span class="icon">📞</span>
+        <span class="label">Update Phone</span>
+    </button>
+</div>
+
+<script>
+    const API_URL = 'http://localhost:5045/api/tenant-portal';
+    let tenantData = null;
+    let tenantToken = localStorage.getItem('tenantToken');
+
+    // ========== CHECK LOGIN ==========
+    if (!tenantToken) {
+        window.location.href = 'tenant-login.html';
+    }
+
+    // ========== LOAD DATA ==========
+    async function loadDashboard() {
+    try {
+        const data = JSON.parse(localStorage.getItem('tenantData'));
+        tenantData = data;
+        
+        if (!data || !data.id) {
+            logout();
+            return;
+        }
+        
+        // Update header
+        document.getElementById('welcomeText').textContent = `Welcome, ${data.first_name} ${data.last_name}`;
+        
+        // Update profile
+        document.getElementById('tenantName').textContent = `${data.first_name} ${data.last_name}`;
+        document.getElementById('tenantEmail').textContent = data.email || '-';
+        document.getElementById('tenantPhone').textContent = data.phone || '-';
+        document.getElementById('tenantAccount').textContent = data.account_number || data.house_no || '-';
+        document.getElementById('tenantProperty').textContent = data.property_name || '-';
+        document.getElementById('tenantMemberSince').textContent = data.move_in_date ? formatDate(data.move_in_date) : '-';
+        document.getElementById('tenantNationalId').textContent = data.national_id || '-';
+        
+        // Load full dashboard data
+        const response = await fetch(`${API_URL}/dashboard/${data.id}`, {
+            headers: { 'Authorization': `Bearer ${tenantToken}` }
+        });
+        
+        if (!response.ok) {
+            if (response.status === 401) { logout(); return; }
+            throw new Error('Failed to load dashboard');
+        }
+        
+        const result = await response.json();
+        
+        // Update stats
+        const balance = result.balance || 0;
+        const totalBilled = result.total_billed || 0;
+        const totalPaid = result.total_paid || 0;
+        
+        document.getElementById('statBalance').textContent = `KES ${formatNumber(balance)}`;
+        document.getElementById('statBalance').className = 'value' + (balance > 0 ? ' negative' : (balance < 0 ? ' positive' : ''));
+        document.getElementById('statBilled').textContent = `KES ${formatNumber(totalBilled)}`;
+        document.getElementById('statPaid').textContent = `KES ${formatNumber(totalPaid)}`;
+        
+        // Progress bar
+        const paidPercentage = totalBilled > 0 ? Math.min((totalPaid / totalBilled) * 100, 100) : 0;
+        const remaining = totalBilled - totalPaid;
+        document.getElementById('progressText').textContent = `${Math.round(paidPercentage)}%`;
+        document.getElementById('progressFill').style.width = `${paidPercentage}%`;
+        document.getElementById('remainingBalance').textContent = `KES ${formatNumber(remaining)}`;
+        
+        // Due date (6th of current month)
+        const now = new Date();
+        const dueDate = new Date(now.getFullYear(), now.getMonth(), 6);
+        document.getElementById('dueDate').textContent = dueDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+        
+        // Last payment
+        const lastPayment = result.payments && result.payments.length > 0 ? result.payments[0] : null;
+        if (lastPayment) {
+            document.getElementById('lastPaymentDate').textContent = formatDate(lastPayment.payment_date);
+            document.getElementById('lastPaymentAmount').textContent = `KES ${formatNumber(lastPayment.amount)}`;
+        } else {
+            document.getElementById('lastPaymentDate').textContent = 'No payment yet';
+            document.getElementById('lastPaymentAmount').textContent = '-';
+        }
+        
+        // Recent payments (dashboard)
+        renderPaymentsTable(result.payments || [], 'recentPayments');
+        
+        // All payments
+        renderPaymentsTable(result.payments || [], 'allPayments');
+        
+        // Invoices
+        renderInvoicesTable(result.invoices || []);
+        
+    } catch (error) {
+        console.error('Dashboard error:', error);
+        document.getElementById('welcomeText').textContent = 'Error loading data';
+    }
+}
+    // ========== RENDER TABLES ==========
+   function renderPaymentsTable(payments, containerId) {
+    const container = document.getElementById(containerId);
+    
+    // Check if container exists
+    if (!container) {
+        console.warn('⚠️ Container not found:', containerId);
+        return;
+    }
+    
+    if (!payments || payments.length === 0) {
+        container.innerHTML = '<tr class="empty-row"><td colspan="5">No payments found</td></tr>';
+        return;
+    }
+    
+    container.innerHTML = payments.map(p => `
+        <tr>
+            <td>${formatDate(p.payment_date)}</td>
+            <td>KES ${formatNumber(p.amount)}</td>
+            <td>${p.payment_type || 'rent'}</td>
+            <td>${p.transaction_id || '-'}</td>
+            <td>
+                <button class="receipt-btn" onclick="viewReceipt(${p.id})" title="View Receipt">📄</button>
+                <button class="receipt-btn" onclick="downloadReceipt(${p.id})" title="Download Receipt">⬇️</button>
+            </td>
+        </tr>
+    `).join('');
+}
+    function renderInvoicesTable(invoices) {
+        const container = document.getElementById('allInvoices');
+        if (!invoices || invoices.length === 0) {
+            container.innerHTML = '<tr class="empty-row"><td colspan="4">No invoices found</td></tr>';
+            return;
+        }
+        container.innerHTML = invoices.map(inv => {
+            const items = inv.items || [];
+            const itemsText = items.map(i => `${i.item_name}: KES ${formatNumber(i.amount)}`).join(', ');
+            const statusText = inv.status === 'paid' ? 'Paid' : (inv.status === 'partially_paid' ? 'Partial' : 'Not Paid');
+            const statusColor = inv.status === 'paid' ? '#27ae60' : (inv.status === 'partially_paid' ? '#f39c12' : '#e74c3c');
+            return `
+                <tr>
+                    <td>${new Date(inv.bill_month).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}</td>
+                    <td style="font-size:12px;">${itemsText || '-'}</td>
+                    <td>KES ${formatNumber(inv.total_bill)}</td>
+                    <td style="color:${statusColor}; font-weight:500;">${statusText}</td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    // ========== NAVIGATION ==========
+    document.querySelectorAll('.bottom-nav .nav-item').forEach(btn => {
+        btn.onclick = () => {
+            const page = btn.getAttribute('data-page');
+            document.querySelectorAll('.bottom-nav .nav-item').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.getElementById(`page-${page}`).classList.add('active');
+            
+            const titles = {
+                dashboard: ' Dashboard',
+                payments: ' Payments',
+                invoices: ' Invoices',
+                settings: ' Account Settings',
+                phone: ' Update Phone'
+            };
+            document.getElementById('pageTitle').textContent = titles[page] || 'Dashboard';
+            
+            // Update phone page with current phone
+            if (page === 'phone' && tenantData) {
+                document.getElementById('currentPhone').value = tenantData.phone || '';
+            }
+        };
+    });
+
+    // ========== PAYMENT MODAL ==========
+    function openPayModal() {
+        document.getElementById('payModal').classList.add('active');
+        document.getElementById('payMsg').textContent = '';
+        document.getElementById('payAmount').value = '';
+        document.getElementById('payPhone').value = '';
+        // Default to rent
+        document.querySelector('input[name="payType"][value="rent"]').checked = true;
+    }
+
+    function closePayModal() {
+        document.getElementById('payModal').classList.remove('active');
+    }
+
+    async function initiatePayment() {
+        const type = document.querySelector('input[name="payType"]:checked').value;
+        const amount = parseFloat(document.getElementById('payAmount').value);
+        const phone = document.getElementById('payPhone').value.trim();
+        const msg = document.getElementById('payMsg');
+        
+        if (!amount || amount <= 0) {
+            msg.textContent = 'Please enter a valid amount';
+            return;
+        }
+        if (!phone) {
+            msg.textContent = 'Please enter phone number (e.g., 254712345678)';
+            return;
+        }
+        
+        msg.textContent = '';
+        
+        try {
+            const response = await fetch(`${API_URL}/pay`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${tenantToken}`
+                },
+                body: JSON.stringify({
+                    tenant_id: tenantData.id,
+                    amount: amount,
+                    payment_type: type,
+                    phone_number: phone
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (response.ok) {
+                alert(`✅ STK Push sent to ${phone}\nAmount: KES ${formatNumber(amount)}\nType: ${type}\n\nCheck your phone for the M-Pesa prompt.`);
+                closePayModal();
+                // Reload dashboard after payment
+                setTimeout(loadDashboard, 3000);
+            } else {
+                msg.textContent = result.error || 'Payment failed';
+            }
+        } catch (error) {
+            msg.textContent = 'Connection error. Please try again.';
+        }
+    }
+
+    // ========== CHANGE PASSWORD ==========
+    async function changePassword() {
+        const current = document.getElementById('currentPwd').value;
+        const newPwd = document.getElementById('newPwd').value;
+        const confirm = document.getElementById('confirmPwd').value;
+        const msg = document.getElementById('pwdMsg');
+        
+        if (!current || !newPwd || !confirm) {
+            msg.textContent = 'Please fill in all fields';
+            return;
+        }
+        if (newPwd !== confirm) {
+            msg.textContent = 'New passwords do not match';
+            return;
+        }
+        if (newPwd.length < 4) {
+            msg.textContent = 'Password must be at least 4 characters';
+            return;
+        }
+        
+        msg.textContent = '';
+        
+        try {
+            const response = await fetch(`${API_URL}/change-password/${tenantData.id}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${tenantToken}`
+                },
+                body: JSON.stringify({
+                    current_password: current,
+                    new_password: newPwd
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (response.ok) {
+                msg.style.color = '#27ae60';
+                msg.textContent = '✅ Password updated successfully!';
+                document.getElementById('currentPwd').value = '';
+                document.getElementById('newPwd').value = '';
+                document.getElementById('confirmPwd').value = '';
+            } else {
+                msg.style.color = '#e74c3c';
+                msg.textContent = result.error || 'Update failed';
+            }
+        } catch (error) {
+            msg.textContent = 'Connection error. Please try again.';
+        }
+    }
+
+    // ========== UPDATE PHONE ==========
+    async function updatePhone() {
+        const newPhone = document.getElementById('newPhone').value.trim();
+        const msg = document.getElementById('phoneMsg');
+        
+        if (!newPhone) {
+            msg.textContent = 'Please enter a new phone number';
+            return;
+        }
+        
+        msg.textContent = '';
+        
+        try {
+            const response = await fetch(`${API_URL}/update-phone/${tenantData.id}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${tenantToken}`
+                },
+                body: JSON.stringify({ phone: newPhone })
+            });
+            
+            const result = await response.json();
+            
+            if (response.ok) {
+                msg.style.color = '#27ae60';
+                msg.textContent = '✅ Phone number updated successfully!';
+                tenantData.phone = newPhone;
+                localStorage.setItem('tenantData', JSON.stringify(tenantData));
+                document.getElementById('tenantPhone').textContent = newPhone;
+                document.getElementById('currentPhone').value = newPhone;
+                document.getElementById('newPhone').value = '';
+            } else {
+                msg.style.color = '#e74c3c';
+                msg.textContent = result.error || 'Update failed';
+            }
+        } catch (error) {
+            msg.textContent = 'Connection error. Please try again.';
+        }
+    }
+// ========== MAKE PAYMENT (STK Push) ==========
+async function initiatePayment() {
+    const type = document.querySelector('input[name="payType"]:checked').value;
+    const amount = parseFloat(document.getElementById('payAmount').value);
+    const phone = document.getElementById('payPhone').value.trim();
+    const msg = document.getElementById('payMsg');
+    
+    if (!amount || amount <= 0) {
+        msg.textContent = 'Please enter a valid amount';
+        return;
+    }
+    if (!phone) {
+        msg.textContent = 'Please enter phone number (e.g., 254712345678)';
+        return;
+    }
+    
+    msg.textContent = '';
+    
+    // Get tenant account number
+    const accountNumber = tenantData?.account_number || tenantData?.house_no || 'RENTPAY';
+    let accountRef = accountNumber;
+    
+    // Add prefix based on payment type
+    if (type === 'deposit') {
+        accountRef = 'D' + accountNumber;
+    } else if (type === 'penalty') {
+        accountRef = 'P' + accountNumber;
+    }
+    
+    try {
+        const response = await fetch(`${API_URL}/../mpesa/stkpush`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${tenantToken}`
+            },
+            body: JSON.stringify({
+                phone_number: phone,
+                amount: amount,
+                account_reference: accountRef,
+                transaction_desc: `${type} payment for ${tenantData?.first_name || ''} ${tenantData?.last_name || ''}`
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok && result.success) {
+            alert(`✅ STK Push sent to ${phone}\nAmount: KES ${formatNumber(amount)}\nType: ${type}\n\nCheck your phone for the M-Pesa prompt.`);
+            closePayModal();
+            // Reload dashboard after payment
+            setTimeout(loadDashboard, 5000);
+        } else {
+            msg.textContent = result.error || 'Payment failed';
+        }
+    } catch (error) {
+        msg.textContent = 'Connection error. Please try again.';
+        console.error('Payment error:', error);
+    }
+}
+    // ========== LOGOUT ==========
+    function logout() {
+        localStorage.removeItem('tenantToken');
+        localStorage.removeItem('tenantData');
+        window.location.href = 'tenant-login.html';
+    }
+
+    // ========== UTILITY FUNCTIONS ==========
+    function formatNumber(num) {
+        if (num === undefined || num === null) return '0';
+        return Number(num).toLocaleString('en-KE', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+    }
+
+    function formatDate(dateString) {
+        if (!dateString) return '-';
+        const d = new Date(dateString);
+        return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    }
+    // ========== VIEW RECEIPT ==========
+function viewReceipt(paymentId) {
+    // Get payment details
+    const payments = document.querySelectorAll('#allPayments tr');
+    let paymentData = null;
+    
+    // Find the payment from the table data
+    for (const row of payments) {
+        const cells = row.querySelectorAll('td');
+        if (cells.length >= 4) {
+            const id = row.querySelector('.receipt-btn')?.getAttribute('onclick')?.match(/\d+/)?.[0];
+            if (id == paymentId) {
+                paymentData = {
+                    date: cells[0]?.textContent || '-',
+                    amount: cells[1]?.textContent || 'KES 0',
+                    type: cells[2]?.textContent || 'rent',
+                    transaction_id: cells[3]?.textContent || '-'
+                };
+                break;
+            }
+        }
+    }
+    
+    // If not found in table, try from tenant data
+    if (!paymentData) {
+        // Fetch from API
+        fetchPaymentAndShowReceipt(paymentId);
+        return;
+    }
+    
+    showReceiptModal(paymentData);
+}
+
+async function fetchPaymentAndShowReceipt(paymentId) {
+    try {
+        const response = await fetch(`${API_URL}/payments/${paymentId}`, {
+            headers: { 'Authorization': `Bearer ${tenantToken}` }
+        });
+        const data = await response.json();
+        if (response.ok) {
+            showReceiptModal({
+                date: formatDate(data.payment_date),
+                amount: `KES ${formatNumber(data.amount)}`,
+                type: data.payment_type || 'rent',
+                transaction_id: data.transaction_id || '-'
+            });
+        } else {
+            alert('Could not load receipt details');
+        }
+    } catch (error) {
+        alert('Error loading receipt');
+    }
+}
+
+
+// ========== SHOW RECEIPT MODAL (Admin Format) ==========
+function showReceiptModal(paymentData) {
+    const companyName = localStorage.getItem('companyName') || 'Rental Management System';
+    const tenantName = `${tenantData?.first_name || ''} ${tenantData?.last_name || ''}`.trim() || 'Tenant';
+    const accountNo = tenantData?.account_number || tenantData?.house_no || '-';
+    const propertyName = tenantData?.property_name || '-';
+    
+    // Calculate being payment of (simplified)
+    const beingPaymentOf = paymentData.date ? new Date(paymentData.date).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }) : '-';
+    
+    // Get current balance
+    const currentBalance = tenantData?.balance || 0;
+    const balanceDisplay = currentBalance < 0 ? `- KES ${formatNumber(Math.abs(currentBalance))}` : `KES ${formatNumber(currentBalance)}`;
+    
+    const modalHtml = `
+        <div class="modal-overlay active" id="receiptModal">
+            <div class="modal-content receipt-modal" style="max-width:450px;">
+                <div style="text-align:center; margin-bottom:20px; border-bottom:1px solid #eee; padding-bottom:15px;">
+                    <div style="font-size:18px; font-weight:bold; color:#1e3a5f;">${escapeHtml(companyName)}</div>
+                    <div style="font-size:12px; color:#888; margin-top:3px;">Ref: RCPT-${paymentData.transaction_id || 'N/A'}</div>
+                    <div style="font-size:12px; color:#888;">Date: ${escapeHtml(paymentData.date || '-')}</div>
+                </div>
+                
+                <div class="receipt-details">
+                    <div class="receipt-row"><span class="receipt-label">Paid By:</span><span class="receipt-value">${escapeHtml(tenantName)}</span></div>
+                    <div class="receipt-row"><span class="receipt-label">Account NO:</span><span class="receipt-value">${escapeHtml(accountNo)}</span></div>
+                    <div class="receipt-row"><span class="receipt-label">Property:</span><span class="receipt-value">${escapeHtml(propertyName)}</span></div>
+                </div>
+                
+                <div class="divider"></div>
+                
+                <div style="margin:10px 0;">
+                    <div style="display:flex; justify-content:space-between; font-weight:bold; border-bottom:1px solid #eee; padding-bottom:5px;">
+                        <span>ITEM</span>
+                        <span>Total</span>
+                    </div>
+                    <div class="receipt-row" style="padding:5px 0;">
+                        <span class="receipt-label" style="text-transform:capitalize;">${escapeHtml(paymentData.type || 'rent')}</span>
+                        <span class="receipt-value">${escapeHtml(paymentData.amount || 'KES 0')}</span>
+                    </div>
+                </div>
+                
+                <div class="divider"></div>
+                
+                <div class="receipt-row" style="font-weight:bold; font-size:16px;">
+                    <span class="receipt-label">Total:</span>
+                    <span class="receipt-value">${escapeHtml(paymentData.amount || 'KES 0')}</span>
+                </div>
+                
+                <div class="receipt-row">
+                    <span class="receipt-label">Total Paid:</span>
+                    <span class="receipt-value">${escapeHtml(paymentData.amount || 'KES 0')}</span>
+                </div>
+                
+                <div class="receipt-row">
+                    <span class="receipt-label">Current Balance:</span>
+                    <span class="receipt-value" style="color:${currentBalance < 0 ? '#27ae60' : (currentBalance > 0 ? '#e74c3c' : '#333')};">${balanceDisplay}</span>
+                </div>
+                
+                <div class="divider"></div>
+                
+                <div class="receipt-row">
+                    <span class="receipt-label">Being Payment of:</span>
+                    <span class="receipt-value">${escapeHtml(beingPaymentOf)}</span>
+                </div>
+                
+                <div class="divider"></div>
+                
+                <div style="text-align:center; font-size:10px; color:#999; margin-top:10px;">
+                    This receipt was created by computer and is valid without signature and seal.
+                </div>
+                
+                <div class="modal-buttons" style="margin-top:20px;">
+                    <button class="btn-cancel" onclick="closeReceiptModal()">Close</button>
+                    <button class="btn-pay" onclick="downloadReceiptPDF('${paymentData.transaction_id || 'N/A'}', '${paymentData.date}', '${paymentData.amount}', '${paymentData.type}')">📥 Download</button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    const existingModal = document.getElementById('receiptModal');
+    if (existingModal) existingModal.remove();
+    
+    const modalContainer = document.createElement('div');
+    modalContainer.innerHTML = modalHtml;
+    document.body.appendChild(modalContainer.firstElementChild);
+}
+// ========== CLOSE RECEIPT MODAL ==========
+function closeReceiptModal() {
+    const modal = document.getElementById('receiptModal');
+    if (modal) modal.remove();
+}
+
+
+// ========== DOWNLOAD RECEIPT PDF (Admin Format) ==========
+function downloadReceiptPDF(transactionId, date, amount, type) {
+    const companyName = localStorage.getItem('companyName') || 'Rental Management System';
+    const tenantName = `${tenantData?.first_name || ''} ${tenantData?.last_name || ''}`.trim() || 'Tenant';
+    const accountNo = tenantData?.account_number || tenantData?.house_no || '-';
+    const propertyName = tenantData?.property_name || '-';
+    const currentBalance = tenantData?.balance || 0;
+    const balanceDisplay = currentBalance < 0 ? `- KES ${formatNumber(Math.abs(currentBalance))}` : `KES ${formatNumber(currentBalance)}`;
+    const beingPaymentOf = date ? new Date(date).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }) : '-';
+    
+    const receiptHtml = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>Receipt_${transactionId || 'N/A'}</title>
+            <style>
+                body { font-family: Arial, sans-serif; margin: 40px; }
+                .receipt { max-width: 420px; margin: 0 auto; border: 1px solid #ddd; padding: 25px; border-radius: 6px; background: white; }
+                .header { text-align: center; border-bottom: 1px solid #eee; padding-bottom: 15px; margin-bottom: 15px; }
+                .header .company { font-size: 18px; font-weight: bold; color: #1e3a5f; }
+                .header .ref { font-size: 12px; color: #666; margin-top: 3px; }
+                .header .date { font-size: 12px; color: #666; }
+                .row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; }
+                .row .label { color: #666; }
+                .row .value { font-weight: 500; color: #333; }
+                .divider { border-top: 1px dashed #ddd; margin: 10px 0; }
+                .item-header { display: flex; justify-content: space-between; font-weight: bold; border-bottom: 1px solid #eee; padding-bottom: 5px; margin-bottom: 5px; font-size: 13px; }
+                .total-row { font-weight: bold; font-size: 16px; }
+                .balance-negative { color: #27ae60; }
+                .balance-positive { color: #e74c3c; }
+                .footer { text-align: center; font-size: 10px; color: #999; margin-top: 15px; border-top: 1px solid #eee; padding-top: 12px; }
+            </style>
+        </head>
+        <body>
+            <div class="receipt">
+                <div class="header">
+                    <div class="company">${escapeHtml(companyName)}</div>
+                    <div class="ref">Ref: RCPT-${escapeHtml(transactionId || 'N/A')}</div>
+                    <div class="date">Date: ${escapeHtml(date || '-')}</div>
+                </div>
+                
+                <div class="row"><span class="label">Paid By:</span><span class="value">${escapeHtml(tenantName)}</span></div>
+                <div class="row"><span class="label">Account NO:</span><span class="value">${escapeHtml(accountNo)}</span></div>
+                <div class="row"><span class="label">Property:</span><span class="value">${escapeHtml(propertyName)}</span></div>
+                
+                <div class="divider"></div>
+                
+                <div class="item-header"><span>ITEM</span><span>Total</span></div>
+                <div class="row"><span class="label" style="text-transform:capitalize;">${escapeHtml(type || 'rent')}</span><span class="value">${escapeHtml(amount || 'KES 0')}</span></div>
+                
+                <div class="divider"></div>
+                
+                <div class="row total-row"><span class="label">Total:</span><span class="value">${escapeHtml(amount || 'KES 0')}</span></div>
+                <div class="row"><span class="label">Total Paid:</span><span class="value">${escapeHtml(amount || 'KES 0')}</span></div>
+                <div class="row"><span class="label">Current Balance:</span><span class="value ${currentBalance < 0 ? 'balance-negative' : (currentBalance > 0 ? 'balance-positive' : '')}">${balanceDisplay}</span></div>
+                
+                <div class="divider"></div>
+                
+                <div class="row"><span class="label">Being Payment of:</span><span class="value">${escapeHtml(beingPaymentOf)}</span></div>
+                
+                <div class="divider"></div>
+                
+                <div class="footer">This receipt was created by computer and is valid without signature and seal.</div>
+            </div>
+        </body>
+        </html>
+    `;
+    
+    const blob = new Blob([receiptHtml], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Receipt_${transactionId || Date.now()}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+// ========== DOWNLOAD RECEIPT FROM TABLE ==========
+function downloadReceipt(paymentId) {
+    // Find the payment from the table
+    const rows = document.querySelectorAll('#allPayments tr');
+    for (const row of rows) {
+        const cells = row.querySelectorAll('td');
+        if (cells.length >= 4) {
+            const date = cells[0]?.textContent || '-';
+            const amount = cells[1]?.textContent || 'KES 0';
+            const type = cells[2]?.textContent || 'rent';
+            const transactionId = cells[3]?.textContent || 'N/A';
+            downloadReceiptPDF(transactionId, date, amount, type);
+            return;
+        }
+    }
+    alert('Could not find payment details');
+}
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+    // ========== INIT ==========
+    loadDashboard();
+</script>
+</body>
+</html>

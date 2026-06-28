@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>Tenant Portal - Sign Up</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body {
+            background: linear-gradient(135deg, #1e3a5f 0%, #2c3e50 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .signup-container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            width: 100%;
+            max-width: 420px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        .signup-container .logo { text-align: center; font-size: 48px; margin-bottom: 10px; }
+        .signup-container h1 { text-align: center; color: #1e3a5f; font-size: 22px; margin-bottom: 5px; }
+        .signup-container .sub { text-align: center; color: #888; font-size: 13px; margin-bottom: 25px; }
+        .signup-container label { font-size: 13px; font-weight: 500; color: #555; display: block; margin-top: 12px; margin-bottom: 4px; }
+        .signup-container input { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; background: #f9f9f9; }
+        .signup-container input:focus { border-color: #1abc9c; outline: none; background: white; }
+        .signup-container .checkbox-group {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .signup-container .checkbox-group input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            margin-top: 2px;
+            flex-shrink: 0;
+            cursor: pointer;
+        }
+        .signup-container .checkbox-group label {
+            font-size: 13px;
+            color: #555;
+            margin: 0;
+            cursor: pointer;
+            font-weight: normal;
+        }
+        .signup-container .checkbox-group label a {
+            color: #1abc9c;
+            text-decoration: none;
+        }
+        .signup-container .checkbox-group label a:hover {
+            text-decoration: underline;
+        }
+        .signup-container button { 
+            width: 100%; padding: 12px; background: #1abc9c; color: white; border: none; border-radius: 6px; 
+            font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 18px; transition: background 0.3s; 
+        }
+        .signup-container button:hover { background: #16a085; }
+        .signup-container button:disabled { background: #95a5a6; cursor: not-allowed; }
+        .signup-container .error { color: #e74c3c; text-align: center; margin-top: 10px; font-size: 13px; }
+        .signup-container .success { color: #27ae60; text-align: center; margin-top: 10px; font-size: 13px; }
+        .signup-container .info { text-align: center; margin-top: 15px; color: #888; font-size: 12px; border-top: 1px solid #eee; padding-top: 15px; }
+        .signup-container .info a { color: #1abc9c; text-decoration: none; }
+        .signup-container .info a:hover { text-decoration: underline; }
+        .terms-text {
+            display: none;
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 10px;
+            font-size: 13px;
+            color: #555;
+            line-height: 1.6;
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #e0e0e0;
+        }
+        .terms-text.show {
+            display: block;
+        }
+        .terms-text strong {
+            color: #1e3a5f;
+        }
+        .password-hint {
+            font-size: 11px;
+            color: #888;
+            margin-top: 4px;
+        }
+        .password-match {
+            font-size: 12px;
+            margin-top: 4px;
+        }
+        .password-match.match { color: #27ae60; }
+        .password-match.nomatch { color: #e74c3c; }
+    </style>
+</head>
+<body>
+    <div class="signup-container">
+        <div class="logo">🏠</div>
+        <h1>Tenant Sign Up</h1>
+        <p class="sub">Verify your phone number to set up your account</p>
+        
+        <form id="signupForm">
+            <label>Phone Number *</label>
+            <input type="tel" id="phone" placeholder="0712345678" required>
+            
+            <label>Password *</label>
+            <input type="password" id="password" placeholder="Create a password (min 4 characters)" required minlength="4">
+            <div class="password-hint">Minimum 4 characters</div>
+            
+            <label>Confirm Password *</label>
+            <input type="password" id="confirmPassword" placeholder="Confirm your password" required>
+            <div id="passwordMatch" class="password-match"></div>
+            
+            <div class="checkbox-group">
+                <input type="checkbox" id="termsCheck" required>
+                <label for="termsCheck">
+                    I agree to the <a href="#" id="termsLink">Terms and Conditions</a>
+                </label>
+            </div>
+            
+            <div id="termsText" class="terms-text">
+                <strong>Data Protection & Privacy Policy</strong><br><br>
+                Your personal data is collected and processed in accordance with the Data Protection Act.
+                <br><br>
+                <strong>What we collect:</strong><br>
+                • Phone number<br>
+                • Name<br>
+                • Rent payment history<br>
+                • Property and unit details<br><br>
+                <strong>How we use your data:</strong><br>
+                • To manage your tenancy<br>
+                • To send rent reminders and payment receipts<br>
+                • To process rent payments via M-Pesa<br>
+                • To provide tenant portal access<br><br>
+                <strong>Data Protection:</strong><br>
+                Your data is stored securely and will never be shared with third parties without your explicit consent. We comply with all applicable data protection laws.
+                <br><br>
+                <strong>Your Rights:</strong><br>
+                • Access your data<br>
+                • Request corrections<br>
+                • Request deletion<br>
+                • Withdraw consent<br><br>
+                <em>By creating an account, you consent to the collection and processing of your data as described above.</em>
+            </div>
+            
+            <button type="submit" id="signupBtn">🔑 Create Account</button>
+            <div id="signupMessage" class="error"></div>
+        </form>
+        
+        <div class="info">
+            Already have an account? <a href="tenant-login.html">Login here</a>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:5045/api/tenant-portal';
+        
+        // Terms toggle
+        document.getElementById('termsLink').addEventListener('click', function(e) {
+            e.preventDefault();
+            document.getElementById('termsText').classList.toggle('show');
+        });
+        
+        // Password match check
+        document.getElementById('confirmPassword').addEventListener('input', function() {
+            const password = document.getElementById('password').value;
+            const confirm = this.value;
+            const matchDiv = document.getElementById('passwordMatch');
+            
+            if (confirm.length === 0) {
+                matchDiv.textContent = '';
+                matchDiv.className = 'password-match';
+                return;
+            }
+            
+            if (password === confirm) {
+                matchDiv.textContent = '✅ Passwords match';
+                matchDiv.className = 'password-match match';
+            } else {
+                matchDiv.textContent = '❌ Passwords do not match';
+                matchDiv.className = 'password-match nomatch';
+            }
+        });
+        
+        document.getElementById('signupForm').onsubmit = async (e) => {
+            e.preventDefault();
+            
+            const phone = document.getElementById('phone').value.trim();
+            const password = document.getElementById('password').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+            const termsChecked = document.getElementById('termsCheck').checked;
+            const msg = document.getElementById('signupMessage');
+            const btn = document.getElementById('signupBtn');
+            
+            // Reset message
+            msg.textContent = '';
+            msg.className = 'error';
+            
+            // Validate phone
+            if (!phone) {
+                msg.textContent = 'Please enter your phone number';
+                return;
+            }
+            
+            // Validate password
+            if (!password || password.length < 4) {
+                msg.textContent = 'Password must be at least 4 characters';
+                return;
+            }
+            
+            // Validate confirm password
+            if (password !== confirmPassword) {
+                msg.textContent = 'Passwords do not match';
+                return;
+            }
+            
+            // Validate terms
+            if (!termsChecked) {
+                msg.textContent = 'You must agree to the Terms and Conditions';
+                return;
+            }
+            
+            // Disable button
+            btn.disabled = true;
+            btn.textContent = 'Creating...';
+            
+            try {
+                const response = await fetch(`${API_URL}/signup`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        phone: phone, 
+                        password: password 
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    msg.textContent = '✅ Account created successfully! Redirecting to login...';
+                    msg.className = 'success';
+                    setTimeout(() => {
+                        window.location.href = 'tenant-login.html';
+                    }, 2000);
+                } else {
+                    msg.textContent = data.error || 'Sign up failed';
+                    msg.className = 'error';
+                }
+            } catch (error) {
+                msg.textContent = 'Connection error. Please try again.';
+                msg.className = 'error';
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '🔑 Create Account';
+            }
+        };
+    </script>
+</body>
+</html>
