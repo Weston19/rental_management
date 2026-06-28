@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>Tenant Portal - Login</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body {
+            background: linear-gradient(135deg, #1e3a5f 0%, #2c3e50 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .login-container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            width: 100%;
+            max-width: 400px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        .login-container .logo { text-align: center; font-size: 48px; margin-bottom: 10px; }
+        .login-container h1 { text-align: center; color: #1e3a5f; font-size: 22px; margin-bottom: 5px; }
+        .login-container .sub { text-align: center; color: #888; font-size: 13px; margin-bottom: 25px; }
+        .login-container label { font-size: 13px; font-weight: 500; color: #555; display: block; margin-top: 12px; margin-bottom: 4px; }
+        .login-container input { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; background: #f9f9f9; }
+        .login-container input:focus { border-color: #1abc9c; outline: none; background: white; }
+        .login-container button { width: 100%; padding: 12px; background: #1abc9c; color: white; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 18px; transition: background 0.3s; }
+        .login-container button:hover { background: #16a085; }
+        .login-container .error { color: #e74c3c; text-align: center; margin-top: 10px; font-size: 13px; }
+        .login-container .info { text-align: center; margin-top: 15px; color: #888; font-size: 12px; border-top: 1px solid #eee; padding-top: 15px; }
+        .login-container .info a { color: #1abc9c; text-decoration: none; }
+        .login-container .info a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="logo">🏠</div>
+        <h1>Tenant Portal</h1>
+        <p class="sub">Login to view your rent details</p>
+        
+        <form id="loginForm">
+            <label>Phone Number</label>
+            <input type="tel" id="phone" placeholder="0712345678" required>
+            
+            <label>Password</label>
+            <input type="password" id="password" placeholder="Enter your password" required>
+            
+            <button type="submit">🔑 Login</button>
+            <div id="loginError" class="error"></div>
+        </form>
+        
+        <div class="info">
+            Don't have an account? <a href="tenant-signup.html">Sign up here</a>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:5045/api/tenant-portal';
+        
+        document.getElementById('loginForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const phone = document.getElementById('phone').value.trim();
+            const password = document.getElementById('password').value;
+            const errorDiv = document.getElementById('loginError');
+            
+            if (!phone || !password) {
+                errorDiv.textContent = 'Please fill in all fields';
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_URL}/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ phone, password })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    localStorage.setItem('tenantToken', data.token);
+                    localStorage.setItem('tenantData', JSON.stringify(data.tenant));
+                    window.location.href = 'tenant-dashboard.html';
+                } else {
+                    errorDiv.textContent = data.error || 'Login failed';
+                }
+            } catch (error) {
+                errorDiv.textContent = 'Connection error. Please try again.';
+            }
+        };
+    </script>
+</body>
+</html>
