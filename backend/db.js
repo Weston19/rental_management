@@ -2,11 +2,11 @@ const { Pool } = require('pg');
 require('dotenv').config();
 
 const pool = new Pool({
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    host: process.env.DB_HOST,
-    port: process.env.DB_PORT,
-    database: process.env.DB_NAME,
+    user: process.env.NEXT_PUBLIC_SUPABASE_URL_POSTGRES_USER,
+    password: process.env.NEXT_PUBLIC_SUPABASE_URL_POSTGRES_PASSWORD,
+    host: process.env.NEXT_PUBLIC_SUPABASE_URL_POSTGRES_HOST,
+    port: 5432,
+    database: process.env.NEXT_PUBLIC_SUPABASE_URL_POSTGRES_DATABASE,
     ssl: {
         rejectUnauthorized: false
     }

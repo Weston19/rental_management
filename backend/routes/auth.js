@@ -23,7 +23,7 @@ router.post('/signup', async (req, res) => {
             [email, hashedPassword, company_name]
         );
         
-        const token = jwt.sign({ adminId: result.rows[0].id }, process.env.JWT_SECRET);
+        const token = jwt.sign({ adminId: result.rows[0].id }, process.env.NEXT_PUBLIC_SUPABASE_URL_SUPABASE_JWT_SECRET);
         
         res.json({ token, admin: result.rows[0] });
     } catch (error) {
@@ -49,7 +49,7 @@ router.post('/login', async (req, res) => {
             return res.status(401).json({ error: 'Invalid credentials' });
         }
         
-        const token = jwt.sign({ adminId: admin.id }, process.env.JWT_SECRET);
+        const token = jwt.sign({ adminId: admin.id }, process.env.NEXT_PUBLIC_SUPABASE_URL_SUPABASE_JWT_SECRET);
         res.json({ token, admin: { id: admin.id, email: admin.email, company_name: admin.company_name } });
     } catch (error) {
         console.error(error);

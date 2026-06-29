@@ -102,7 +102,7 @@ router.post('/login', async (req, res) => {
         // Generate token
         const token = jwt.sign(
             { tenantId: tenant.id, phone: tenant.phone },
-            process.env.JWT_SECRET,
+            process.env.NEXT_PUBLIC_SUPABASE_URL_SUPABASE_JWT_SECRET,
             { expiresIn: '7d' }
         );
         
