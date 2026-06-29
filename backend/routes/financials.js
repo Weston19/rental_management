@@ -302,7 +302,8 @@ router.get('/expense-categories', auth, async (req, res) => {
 router.get('/tenant-list', auth, async (req, res) => {
     try {
         const { property_id, month, year } = req.query;
-        const targetMonth = new Date(year, month - 1, 1);
+        const now = new Date();
+        const targetMonth = year && month ? new Date(parseInt(year), parseInt(month) - 1, 1) : new Date(now.getFullYear(), now.getMonth(), 1);
         
         let query = `
             SELECT 
@@ -343,7 +344,7 @@ router.get('/tenant-list', auth, async (req, res) => {
             FROM properties p
             LEFT JOIN rooms r ON p.id = r.property_id
             LEFT JOIN tenants t ON r.id = t.room_id AND t.is_deleted = FALSE
-            LEFT JOIN bills b ON t.id = b.tenant_id AND b.bill_month = $1
+            LEFT JOIN bills b ON t.id = b.tenant_id AND DATE_TRUNC('month', b.bill_month) = DATE_TRUNC('month', $1::date)
             WHERE 1=1
         `;
         
