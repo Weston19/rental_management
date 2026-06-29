@@ -42,9 +42,26 @@ async function getAccessToken() {
 
 // ========== STK PUSH ==========
 async function callStkPush(phoneNumber, amount, accountReference, transactionDesc) {
+    // Check if M-Pesa credentials are configured
+    if (!CONSUMER_KEY || !CONSUMER_SECRET || !SHORTCODE || !PASSKEY || !CALLBACK_URL) {
+        throw new Error('M-Pesa credentials not configured. Please set MPESA_* environment variables.');
+    }
+    
     const token = await getAccessToken();
     const timestamp = new Date().toISOString().replace(/[^0-9]/g, '').slice(0, 14);
     const password = Buffer.from(`${SHORTCODE}${PASSKEY}${timestamp}`).toString('base64');
+    
+    // Format phone number to 2547XXXXXXXX format
+    let formattedPhone = phoneNumber.replace(/\D/g, '');
+    if (formattedPhone.startsWith('0')) {
+        formattedPhone = '254' + formattedPhone.substring(1);
+    } else if (formattedPhone.startsWith('254')) {
+        // Already correct format
+    } else if (formattedPhone.startsWith('7')) {
+        formattedPhone = '254' + formattedPhone;
+    } else {
+        throw new Error('Invalid phone number format. Please use Kenyan phone number.');
+    }
     
     const payload = {
         BusinessShortCode: SHORTCODE,
@@ -52,9 +69,9 @@ async function callStkPush(phoneNumber, amount, accountReference, transactionDes
         Timestamp: timestamp,
         TransactionType: 'CustomerPayBillOnline',
         Amount: Math.round(amount),
-        PartyA: phoneNumber,
+        PartyA: formattedPhone,
         PartyB: SHORTCODE,
-        PhoneNumber: phoneNumber,
+        PhoneNumber: formattedPhone,
         CallBackURL: CALLBACK_URL,
         AccountReference: accountReference || 'RENTPAY',
         TransactionDesc: transactionDesc || 'Rent Payment'
