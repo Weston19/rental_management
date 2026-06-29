@@ -487,8 +487,10 @@ router.get('/unassigned', auth, async (req, res) => {
     try {
         const result = await pool.query(
             `SELECT * FROM unassigned_payments 
-             WHERE assigned_to_tenant_id IS NULL 
-             ORDER BY created_at DESC`
+             WHERE assigned_to_tenant_id IS NULL
+               AND (owner_id = $1 OR owner_id IS NULL)
+             ORDER BY created_at DESC`,
+            [req.ownerId]
         );
         res.json(result.rows);
     } catch (error) {
@@ -497,11 +499,16 @@ router.get('/unassigned', auth, async (req, res) => {
     }
 });
 
-// 6. Unassigned Payments - Assign to Tenant
+// 6. Unassigned Payments - Assign to Tenant  (manager+ only)
 router.post('/unassigned/assign/:id', auth, async (req, res) => {
     const { room_id, password } = req.body;
     const paymentId = req.params.id;
-    
+
+    // Viewers cannot assign payments
+    if (req.role === 'viewer') {
+        return res.status(403).json({ error: 'Viewers have read-only access.' });
+    }
+
     try {
         // Verify admin password
         const admin = await pool.query('SELECT password_hash FROM admin WHERE id = $1', [req.adminId]);
@@ -509,41 +516,47 @@ router.post('/unassigned/assign/:id', auth, async (req, res) => {
         if (!validPassword) {
             return res.status(401).json({ error: 'Invalid password' });
         }
-        
-        // Find tenant for the room
+
+        // Find tenant for the room — must belong to this owner
         const room = await pool.query(
-            `SELECT t.id as tenant_id FROM rooms r
+            `SELECT t.id as tenant_id, t.owner_id FROM rooms r
+             JOIN properties p ON r.property_id = p.id
              JOIN tenants t ON r.id = t.room_id
-             WHERE r.id = $1 AND t.is_deleted = FALSE`,
-            [room_id]
+             WHERE r.id = $1 AND p.owner_id = $2 AND t.is_deleted = FALSE`,
+            [room_id, req.ownerId]
         );
-        
+
         if (room.rows.length === 0) {
             return res.status(404).json({ error: 'No active tenant found for this room' });
         }
-        
+
         // Get unassigned payment
         const payment = await pool.query('SELECT * FROM unassigned_payments WHERE id = $1', [paymentId]);
         if (payment.rows.length === 0) {
             return res.status(404).json({ error: 'Payment not found' });
         }
-        
-        // Create payment record
+
+        const tenantId = room.rows[0].tenant_id;
+
+        // Create payment record with owner_id
         await pool.query(
-            `INSERT INTO payments (tenant_id, amount, payment_type, transaction_id, source, payment_date)
-             VALUES ($1, $2, 'rent', $3, 'auto', $4)`,
-            [room.rows[0].tenant_id, payment.rows[0].amount, payment.rows[0].transaction_id, payment.rows[0].payment_date]
+            `INSERT INTO payments (tenant_id, amount, payment_type, transaction_id, source, payment_date, owner_id)
+             VALUES ($1, $2, 'rent', $3, 'auto', $4, $5)`,
+            [tenantId, payment.rows[0].amount, payment.rows[0].transaction_id,
+             payment.rows[0].payment_date, req.ownerId]
         );
-        
+
         // Apply payment to bills
-        await applyPaymentToBills(room.rows[0].tenant_id, payment.rows[0].amount, payment.rows[0].transaction_id);
-        
+        await applyPaymentToBills(tenantId, payment.rows[0].amount, payment.rows[0].transaction_id);
+
         // Mark as assigned
         await pool.query(
-            `UPDATE unassigned_payments SET assigned_to_tenant_id = $1, assigned_by = $2, assigned_at = NOW() WHERE id = $3`,
-            [room.rows[0].tenant_id, req.adminId, paymentId]
+            `UPDATE unassigned_payments
+             SET assigned_to_tenant_id = $1, assigned_by = $2, assigned_at = NOW(), owner_id = $3
+             WHERE id = $4`,
+            [tenantId, req.adminId, req.ownerId, paymentId]
         );
-        
+
         res.json({ message: 'Payment assigned successfully' });
     } catch (error) {
         console.error('❌ Assign payment error:', error);

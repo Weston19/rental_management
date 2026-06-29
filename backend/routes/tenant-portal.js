@@ -156,16 +156,16 @@ router.post('/login', loginRateLimiter, validateTenantLogin, async (req, res) =>
 
 router.get('/dashboard/:tenantId', tenantAuth, async (req, res) => {
     const { tenantId } = req.params;
-    
+
     try {
         const tenant = await pool.query(`
             SELECT t.*, p.name as property_name, r.house_no, r.rent
             FROM tenants t
             LEFT JOIN properties p ON t.property_id = p.id
             LEFT JOIN rooms r ON t.room_id = r.id
-            WHERE t.id = $1
-        `, [tenantId]);
-        
+            WHERE t.id = $1 AND t.id = $2
+        `, [tenantId, req.tenantId]);
+
         if (tenant.rows.length === 0) {
             return res.status(404).json({ error: 'Tenant not found' });
         }
@@ -221,7 +221,12 @@ router.get('/dashboard/:tenantId', tenantAuth, async (req, res) => {
 // Get all invoices
 router.get('/invoices/:tenantId', tenantAuth, async (req, res) => {
     const { tenantId } = req.params;
-    
+
+    // Tenants can only access their own invoices
+    if (parseInt(tenantId) !== req.tenantId) {
+        return res.status(403).json({ error: 'Access forbidden.' });
+    }
+
     try {
         const result = await pool.query(`
             SELECT b.*, 
@@ -241,7 +246,11 @@ router.get('/invoices/:tenantId', tenantAuth, async (req, res) => {
 // Get payment history
 router.get('/payments/:tenantId', tenantAuth, async (req, res) => {
     const { tenantId } = req.params;
-    
+
+    if (parseInt(tenantId) !== req.tenantId) {
+        return res.status(403).json({ error: 'Access forbidden.' });
+    }
+
     try {
         const result = await pool.query(`
             SELECT * FROM payments 
@@ -260,6 +269,11 @@ router.get('/payments/:tenantId', tenantAuth, async (req, res) => {
 // Change password
 router.put('/change-password/:tenantId', tenantAuth, async (req, res) => {
     const { tenantId } = req.params;
+
+    if (parseInt(tenantId) !== req.tenantId) {
+        return res.status(403).json({ error: 'Access forbidden.' });
+    }
+
     const { current_password, new_password } = req.body;
     const token = req.header('Authorization')?.replace('Bearer ', '');
     
@@ -312,6 +326,11 @@ router.post('/logout', tenantAuth, async (req, res) => {
 // Update phone number
 router.put('/update-phone/:tenantId', tenantAuth, async (req, res) => {
     const { tenantId } = req.params;
+
+    if (parseInt(tenantId) !== req.tenantId) {
+        return res.status(403).json({ error: 'Access forbidden.' });
+    }
+
     const { phone } = req.body;
     
     try {

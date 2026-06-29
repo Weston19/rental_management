@@ -3,6 +3,29 @@ const pool = require('../db');
 const { stkPushCircuit, stkQueryCircuit } = require('../circuits/mpesa-circuit');
 const router = express.Router();
 
+// ── QStash signature guard ────────────────────────────────────────────────────
+// These endpoints are called by QStash (a server-to-server job scheduler).
+// They must NOT be callable by browsers or tenants.
+// Verify using a shared secret stored in env: QSTASH_SECRET
+function verifyQStashRequest(req, res, next) {
+    const secret = process.env.QSTASH_SECRET;
+    if (!secret) {
+        // No secret configured — block all access in production, warn in dev
+        if (process.env.NODE_ENV === 'production') {
+            return res.status(403).json({ error: 'QStash secret not configured.' });
+        }
+        return next(); // allow in dev for testing
+    }
+    const provided = req.header('x-qstash-secret') || req.header('authorization')?.replace('Bearer ', '');
+    if (provided !== secret) {
+        return res.status(401).json({ error: 'Unauthorized.' });
+    }
+    next();
+}
+
+router.use(verifyQStashRequest);
+// ─────────────────────────────────────────────────────────────────────────────
+
 // ========== M-PESA CONFIGURATION (same as mpesa.js) ==========
 const CONSUMER_KEY = process.env.MPESA_CONSUMER_KEY;
 const CONSUMER_SECRET = process.env.MPESA_CONSUMER_SECRET;
