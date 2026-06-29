@@ -9,6 +9,7 @@ const auth = require('./middleware/auth');
 
 // Import routes
 const authRoutes = require('./routes/auth');
+const tenantPortalRoutes = require('./routes/tenant-portal');
 const propertyRoutes = require('./routes/properties');
 const roomRoutes = require('./routes/rooms');
 const tenantRoutes = require('./routes/tenants');
@@ -43,6 +44,7 @@ app.post('/api/upload/:type', auth, upload.single('image'), (req, res) => {
 
 // API Routes (available from both root and /admin)
 app.use('/api/auth', authRoutes);
+app.use('/api/tenant-portal', tenantPortalRoutes);
 app.use('/api/properties', propertyRoutes);
 app.use('/api/rooms', roomRoutes);
 app.use('/api/tenants', tenantRoutes);
@@ -87,6 +89,7 @@ adminRouter.post('/api/upload/:type', auth, upload.single('image'), (req, res) =
 
 // API Routes on /admin
 adminRouter.use('/api/auth', authRoutes);
+adminRouter.use('/api/tenant-portal', tenantPortalRoutes);
 adminRouter.use('/api/properties', propertyRoutes);
 adminRouter.use('/api/rooms', roomRoutes);
 adminRouter.use('/api/tenants', tenantRoutes);
