@@ -2088,10 +2088,13 @@ window.editProperty = async (id) => {
             <input type="text" id="editPropManager" value="${escapeHtml(property.landlord_name)}" autocomplete="off">
             <label>Location</label>
             <input type="text" id="editPropLocation" value="${escapeHtml(property.location)}" autocomplete="off">
-            <label>Total Rooms</label>
-            <input type="number" id="editPropUnits" value="${property.total_units || property.total_rooms || 0}">
-            <label>Penalty (KES)</label>
-            <input type="number" id="editPropPenalty" value="${property.penalty_amount || 0}">
+            <label>Billing Day (1-28)</label>
+            <input type="number" id="editPropBillingDay" value="${property.billing_day || 1}" min="1" max="28">
+            <label>Penalty Amount (KES)</label>
+            <input type="number" id="editPropPenalty" value="${property.penalty_amount || 0}" min="0">
+            <label>Update Photo (leave blank to keep current)</label>
+            <input type="file" id="editPropImage" accept="image/*">
+            ${property.image_url ? `<div style="margin-top:6px;"><img src="${escapeHtml(property.image_url)}" style="max-width:100%;max-height:100px;border-radius:6px;" id="editPropPreview"></div>` : '<div id="editPropPreview"></div>'}
             <div id="editPropMsg" style="color:#e74c3c; font-size:13px; margin-top:5px;"></div>
             <div class="modal-buttons">
                 <button class="btn-cancel" id="closeModalBtn">Cancel</button>
@@ -2103,26 +2106,55 @@ window.editProperty = async (id) => {
     showModal(modalHtml, null);
     
     setTimeout(() => {
+        // Preview new image if selected
+        document.getElementById('editPropImage')?.addEventListener('change', (e) => {
+            if (e.target.files[0]) {
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    document.getElementById('editPropPreview').innerHTML =
+                        `<img src="${ev.target.result}" style="max-width:100%;max-height:100px;border-radius:6px;margin-top:6px;">`;
+                };
+                reader.readAsDataURL(e.target.files[0]);
+            }
+        });
+
         document.getElementById('saveEditPropBtn').onclick = async () => {
             const msg = document.getElementById('editPropMsg');
-            
+            msg.textContent = '';
+
+            const name        = document.getElementById('editPropName').value.trim();
+            const landlord    = document.getElementById('editPropManager').value.trim();
+            const location    = document.getElementById('editPropLocation').value.trim();
+            const billingDay  = parseInt(document.getElementById('editPropBillingDay').value) || 1;
+            const penalty     = parseFloat(document.getElementById('editPropPenalty').value) || 0;
+
+            if (!name || !landlord || !location) {
+                msg.textContent = 'Name, Manager and Location are required.';
+                return;
+            }
+
+            // Upload new image if selected, otherwise keep existing
+            let imageUrl = property.image_url || null;
+            const file = document.getElementById('editPropImage').files[0];
+            if (file) {
+                imageUrl = await uploadImage(file, 'property');
+            }
+
             const result = await apiCall(`/properties/${id}`, {
                 method: 'PUT',
                 body: JSON.stringify({
-                    name: document.getElementById('editPropName').value,
-                    landlord_name: document.getElementById('editPropManager').value,
-                    location: document.getElementById('editPropLocation').value,
-                    total_rooms: parseInt(document.getElementById('editPropUnits').value) || 0,
-                    occupied_rooms: property.occupied_rooms || 0,
-                    billing_day: 1,
-                    penalty_amount: parseFloat(document.getElementById('editPropPenalty').value) || 0
+                    name,
+                    landlord_name: landlord,
+                    location,
+                    billing_day: billingDay,
+                    penalty_amount: penalty,
+                    image_url: imageUrl
                 })
             });
-            
+
             if (result?.error) {
                 msg.textContent = result.error;
             } else {
-                alert('✅ Property updated successfully!');
                 document.querySelector('.modal')?.remove();
                 renderProperties();
             }
