@@ -597,7 +597,6 @@ function renderPieChart(canvasId, value1, value2, colors) {
 function renderChart(chartData) {
     const canvas = document.getElementById('dashboardChart');
     if (!canvas) {
-        console.error('❌ Chart canvas not found');
         return;
     }
     
@@ -1349,7 +1348,6 @@ async function sendArrearsReminders(arrearsList) {
         });
         
         if (result?.error) {
-            console.error('Failed to send to', recipient.name, result.error);
             failed++;
         } else {
             sent++;
@@ -1601,7 +1599,6 @@ async function renderSmsTemplates() {
         };
         
     } catch (error) {
-        console.error('Render templates error:', error);
         container.innerHTML = '<div class="empty-state">Error loading templates. Please try again.</div>';
     }
 }
@@ -1668,7 +1665,6 @@ function showAddTemplateModal() {
                 }
             } catch (error) {
                 msg.textContent = 'Connection error. Please try again.';
-                console.error('Add template error:', error);
             }
         };
     }, 100);
@@ -1742,8 +1738,6 @@ async function renderNotifications() {
 
 // ========== SHOW COMPOSE MODAL (IMPROVED) ==========
 async function showComposeModal() {
-    console.log('🟢 showComposeModal called');
-    
     const properties = await apiCall('/properties');
     const tenants = await apiCall('/tenants');
     const templates = await apiCall('/settings/templates');
@@ -2051,7 +2045,6 @@ async function renderProperties() {
         renderPagination('pagination-container', properties.length, refreshPropertiesPage);
         
     } catch (error) {
-        console.error('Properties error:', error);
         document.getElementById('propertyList').innerHTML = '<div class="empty-state">Error loading properties.</div>';
     }
 }
@@ -2083,8 +2076,6 @@ window.viewProperty = async (id) => {
 };
 
 window.editProperty = async (id) => {
-    console.log('✏️ Editing property:', id);
-    
     const property = await apiCall(`/properties/${id}`);
     if (!property) return;
     
@@ -2140,8 +2131,6 @@ window.editProperty = async (id) => {
 };
 
 window.deleteProperty = async (id) => {
-    console.log('🗑️ Deleting property:', id);
-    
     if(confirm('Delete this property? This will also delete all rooms and tenants.')){
         const result = await apiCall(`/properties/${id}`, { method: 'DELETE' });
         if (result?.error) {
@@ -2239,15 +2228,12 @@ async function renderRooms() {
 }
 
 window.deleteRoom = async (id) => {
-    console.log('🗑️ Deleting room:', id);
-    
     if (!confirm('Delete this room? This will also remove any tenant assigned to it.')) {
         return;
     }
     
     try {
         const result = await apiCall(`/properties/room/${id}`, { method: 'DELETE' });
-        console.log('Delete result:', result);
         
         if (result?.error) {
             alert('Error: ' + result.error);
@@ -2256,13 +2242,11 @@ window.deleteRoom = async (id) => {
             renderRooms();
         }
     } catch (error) {
-        console.error('Delete room error:', error);
         alert('Error deleting room: ' + error.message);
     }
 };
 
 window.editRoom = async (id) => {
-    console.log('✏️ Editing room:', id);
     
     const room = await apiCall(`/properties/room/${id}`);
     if(!room) return;
@@ -2783,8 +2767,6 @@ function showComposeModalForTenant(tenantId, tenant) {
 }
 
 window.editTenant = async (id) => {
-    console.log('✏️ Editing tenant:', id);
-    
     const tenant = await apiCall(`/tenants/${id}`);
     if(!tenant) return;
     
@@ -3289,8 +3271,6 @@ window.deleteBill = async (id) => {
 
 // ========== CREATE BILL MODAL ==========
 async function showCreateBillModal() {
-    console.log('showCreateBillModal called');
-    
     const allProperties = await apiCall('/properties');
     const allRooms = await apiCall('/rooms');
     const allTenants = await apiCall('/tenants');
@@ -3500,7 +3480,6 @@ function showAutoGenerateModal() {
                         renderBilling();
                     }
                 } catch (error) {
-                    console.error('Auto generate error:', error);
                     alert('Error generating bills: ' + error.message);
                 } finally {
                     generateBtn.disabled = false;
@@ -4086,7 +4065,6 @@ async function sendReceipt(paymentId) {
     
     const receiptUrl = `${window.location.origin}/receipt/${paymentId}`;
     const smsMessage = `Payment Confirmation: KES ${formatNumber(payment.amount)} received from ${payment.first_name} ${payment.last_name}. View receipt: ${receiptUrl}`;
-    console.log('SMS would be sent:', smsMessage);
     
     alert(`SMS would be sent to ${payment.phone}\n\nMessage: ${smsMessage}\n\n(SMS provider not configured yet - this is a placeholder)`);
     
@@ -4308,7 +4286,6 @@ async function downloadPaymentsPDF() {
 
 // ========== SHOW ADD EXPENSE MODAL ==========
 async function showAddExpenseModal() {
-    console.log('🟢 showAddExpenseModal called');
     const properties = await apiCall('/properties');
     const categories = await apiCall('/financials/expense-categories');
     const allRooms = await apiCall('/rooms');
@@ -4703,7 +4680,6 @@ async function renderSummaryContent() {
             summariesDiv.innerHTML = html;
         }
     } catch (error) {
-        console.error('Error loading summary:', error);
         container.innerHTML = '<div class="empty-state">Error loading summary. Please try again.</div>';
     }
 }
@@ -5136,10 +5112,8 @@ function showSummarySelectionModal(summaries) {
 
 // ========== RENDER EXPENSES CONTENT ==========
 async function renderExpensesContent() {
-    console.log('🟢 renderExpensesContent called');
     const container = document.getElementById('financialContent');
     if (!container) {
-        console.error('❌ financialContent not found');
         return;
     }
     
@@ -5172,7 +5146,6 @@ async function renderExpensesContent() {
         const addExpenseBtn = document.getElementById('addExpenseBtnFinancial');
         if (addExpenseBtn) {
             addExpenseBtn.onclick = function() {
-                console.log('🟢 Add Expense button clicked!');
                 showAddExpenseModal();
             };
         }
@@ -5189,7 +5162,6 @@ async function renderExpensesContent() {
         });
         
     } catch (error) {
-        console.error('❌ Error in renderExpensesContent:', error);
         container.innerHTML = '<div class="empty-state">Error loading expenses: ' + error.message + '</div>';
     }
     
@@ -5240,7 +5212,6 @@ async function renderExpensesContent() {
             html += `</tbody></table></div>`;
             expensesDiv.innerHTML = html;
         } catch (error) {
-            console.error('❌ Error loading expenses:', error);
         }
     }
 }
@@ -5248,10 +5219,8 @@ async function renderExpensesContent() {
 
 // ========== RENDER TENANT LIST CONTENT ==========
 async function renderTenantListContent() {
-    console.log('🟢 renderTenantListContent called');
     const container = document.getElementById('financialContent');
     if (!container) {
-        console.error('❌ financialContent not found');
         return;
     }
     
@@ -5260,7 +5229,6 @@ async function renderTenantListContent() {
     try {
         // Get filter data
         const filterData = await apiCall('/financials/filters/data');
-        console.log('🟢 Filter data loaded:', filterData);
         
         const properties = filterData?.properties || [];
         const months = filterData?.months || [];
@@ -5290,7 +5258,6 @@ async function renderTenantListContent() {
         const generateBtn = document.getElementById('generateReportBtnFinancial');
         if (generateBtn) {
             generateBtn.onclick = function() {
-                console.log('🟢 Generate Report button clicked!');
                 loadTenantReportFinancial();
             };
         }
@@ -5298,7 +5265,6 @@ async function renderTenantListContent() {
         const downloadCSVBtn = document.getElementById('downloadCSVReportBtnFinancial');
         if (downloadCSVBtn) {
             downloadCSVBtn.onclick = function() {
-                console.log('🟢 Download CSV button clicked!');
                 downloadTenantReportCSVFinancial();
             };
         }
@@ -5306,21 +5272,17 @@ async function renderTenantListContent() {
         const downloadPDFBtn = document.getElementById('downloadPDFReportBtnFinancial');
         if (downloadPDFBtn) {
             downloadPDFBtn.onclick = function() {
-                console.log('🟢 Download PDF button clicked!');
                 downloadTenantReportPDFFinancial();
             };
         }
         
     } catch (error) {
-        console.error('❌ Error in renderTenantListContent:', error);
         container.innerHTML = '<div class="empty-state">Error loading tenant list: ' + error.message + '</div>';
     }
 }
 
 // ========== LOAD TENANT REPORT ==========
 async function loadTenantReportFinancial() {
-    console.log('🟢 loadTenantReportFinancial called');
-    
     const propertyId = document.getElementById('reportPropertyIdFinancial')?.value || '';
     const monthYear = document.getElementById('reportMonthFinancial')?.value || '';
     
@@ -5334,13 +5296,9 @@ async function loadTenantReportFinancial() {
     let url = `/financials/tenant-list?month=${month}&year=${year}`;
     if (propertyId) url += `&property_id=${propertyId}`;
     
-    console.log('🟢 Loading tenant list from:', url);
-    
     try {
         const data = await apiCall(url);
         const reportDiv = document.getElementById('tenantReportContentFinancial');
-        
-        console.log('🟢 Data received:', data ? data.length : 0, 'records');
         
         if (!data || data.length === 0) {
             reportDiv.innerHTML = '<div class="empty-state">No tenants found for the selected criteria</div>';
@@ -5434,10 +5392,8 @@ tenants.forEach(t => {
         // Save data for download
         window.tenantReportData = data;
         window.tenantReportGrouped = grouped;
-        console.log('✅ Tenant report data saved for download');
         
     } catch (error) {
-        console.error('❌ Error loading tenant report:', error);
         document.getElementById('tenantReportContentFinancial').innerHTML = '<div class="empty-state">Error loading report: ' + error.message + '</div>';
     }
     // ========== DOWNLOAD TENANT LIST CSV ==========
