@@ -1,7 +1,7 @@
 
 // ========== CONFIGURATION ==========
-const API_URL = 'http://localhost:5045/api';
-const UPLOAD_URL = 'http://localhost:5045/api/upload';
+const API_URL = '/api';
+const UPLOAD_URL = '/api/upload';
 let token = localStorage.getItem('token');
 let currentView = 'dashboard';
 let currentFinancialView = 'summary';
