@@ -4,11 +4,13 @@ const jwt = require('jsonwebtoken');
 const pool = require('../db');
 const auth = require('../middleware/auth');
 const redis = require('../redis');
+const loginRateLimiter = require('../middleware/rateLimit');
+const { validateAdminSignup, validateAdminLogin } = require('../middleware/validateInput');
 
 const router = express.Router();
 
 // Sign up
-router.post('/signup', async (req, res) => {
+router.post('/signup', loginRateLimiter, validateAdminSignup, async (req, res) => {
     const { email, password, company_name } = req.body;
     
     try {
@@ -38,7 +40,7 @@ router.post('/signup', async (req, res) => {
 });
 
 // Login
-router.post('/login', async (req, res) => {
+router.post('/login', loginRateLimiter, validateAdminLogin, async (req, res) => {
     const { email, password } = req.body;
     
     try {

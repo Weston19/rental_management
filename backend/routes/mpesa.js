@@ -3,6 +3,8 @@ const axios = require('axios');
 const bcrypt = require('bcrypt');
 const pool = require('../db');
 const auth = require('../middleware/auth');
+const { stkPushCircuit, stkQueryCircuit } = require('../circuits/mpesa-circuit');
+const { queueCallbackProcessing } = require('../jobs/qstash-client');
 
 const router = express.Router();
 
@@ -215,45 +217,52 @@ router.post('/stkpush', async (req, res) => {
             return res.status(400).json({ error: 'Invalid phone number or amount' });
         }
         
-        console.log('🔄 Getting access token...');
-        const token = await getAccessToken();
-        console.log('✅ Token obtained');
+        // Check if circuit is open first
+        if (stkPushCircuit.opened) {
+            return res.status(503).json({
+                success: false,
+                error: 'M-Pesa service temporarily unavailable',
+                message: 'Please try again in 1 minute',
+                circuitOpen: true
+            });
+        }
         
-        const timestamp = new Date().toISOString().replace(/[^0-9]/g, '').slice(0, 14);
-        const password = Buffer.from(`${SHORTCODE}${PASSKEY}${timestamp}`).toString('base64');
-        
-        const payload = {
-            BusinessShortCode: SHORTCODE,
-            Password: password,
-            Timestamp: timestamp,
-            TransactionType: 'CustomerPayBillOnline',
-            Amount: Math.round(amount),
-            PartyA: phone_number,
-            PartyB: SHORTCODE,
-            PhoneNumber: phone_number,
-            CallBackURL: CALLBACK_URL,
-            AccountReference: account_reference || 'RENTPAY',
-            TransactionDesc: transaction_desc || 'Rent Payment'
-        };
-        
-        console.log('📤 Sending STK Push to Safaricom...');
-        const response = await axios.post(
-            `${BASE_URL}/mpesa/stkpush/v1/processrequest`,
-            payload,
-            { headers: { 'Authorization': `Bearer ${token}` } }
+        console.log('🔄 Calling M-Pesa via circuit breaker...');
+        const response = await stkPushCircuit.fire(
+            phone_number,
+            amount,
+            account_reference,
+            transaction_desc
         );
         
-        console.log('✅ STK Push sent:', response.data);
+        console.log('✅ STK Push sent:', response);
+        
+        // Store checkout request ID for tracking
+        if (response.CheckoutRequestID) {
+            await pool.query(
+                `INSERT INTO payment_requests (checkout_request_id, amount, phone_number, status, created_at)
+                 VALUES ($1, $2, $3, 'pending', NOW())`,
+                [response.CheckoutRequestID, amount, phone_number]
+            );
+        }
         
         res.json({
             success: true,
-            data: response.data,
+            data: response,
             message: 'STK Push sent to customer phone'
         });
     } catch (error) {
-        console.error('❌ STK Push Error:', error.response?.data || error.message);
+        console.error('❌ STK Push Error:', error.message);
         
-        // Send detailed error to frontend
+        if (error.message.includes('breaker is open')) {
+            return res.status(503).json({
+                success: false,
+                error: 'M-Pesa service temporarily unavailable',
+                message: 'Please try again in 1 minute',
+                circuitOpen: true
+            });
+        }
+        
         res.status(500).json({
             success: false,
             error: error.response?.data || error.message,
@@ -299,7 +308,6 @@ router.post('/stkquery', auth, async (req, res) => {
 // 3. M-Pesa Callback (Webhook)
 router.post('/callback', async (req, res) => {
     console.log('📡 M-Pesa Callback Received');
-    console.log('📦 Request body:', JSON.stringify(req.body, null, 2));
     
     // Store raw callback for audit
     try {
@@ -311,11 +319,12 @@ router.post('/callback', async (req, res) => {
         console.error('❌ Failed to store callback:', error);
     }
     
-    // Always respond to Safaricom immediately
+    // Always respond to Safaricom immediately (CRITICAL - must respond within 5 seconds)
     res.json({ ResultCode: 0, ResultDesc: 'Success' });
     
-    // Process asynchronously
-    processCallback(req.body);
+    // Queue callback processing via QStash for reliability
+    console.log('📤 Queuing callback processing...');
+    await queueCallbackProcessing(req.body);
 });
 
 // 4. Process Callback (Async) - FIXED

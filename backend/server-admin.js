@@ -17,6 +17,7 @@ const settingsRoutes = require('./routes/settings');
 const messageRoutes = require('./routes/messages');
 const webhookRoutes = require('./routes/webhooks');
 const mpesaRoutes = require('./routes/mpesa');
+const qstashRoutes = require('./routes/qstash-jobs');
 
 const app = express();
 
@@ -41,6 +42,7 @@ app.use('/api/settings', settingsRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/webhooks', webhookRoutes);
 app.use('/api/mpesa', mpesaRoutes);
+app.use('/api/qstash', qstashRoutes);
 
 app.get('/api/test', (req, res) => {
     res.json({ message: 'Admin backend working!' });

@@ -4,11 +4,13 @@ const jwt = require('jsonwebtoken');
 const pool = require('../db');
 const tenantAuth = require('../middleware/tenant-auth');
 const redis = require('../redis');
+const loginRateLimiter = require('../middleware/rateLimit');
+const { validateTenantSignup, validateTenantLogin, validatePayment } = require('../middleware/validateInput');
 const router = express.Router();
 
 // ========== TENANT AUTH ==========
 // ========== TENANT SIGN UP (Phone Verification) ==========
-router.post('/signup', async (req, res) => {
+router.post('/signup', loginRateLimiter, validateTenantSignup, async (req, res) => {
     const { phone, password } = req.body;
     
     try {
@@ -61,7 +63,7 @@ router.post('/signup', async (req, res) => {
 });
 
 // ========== TENANT LOGIN (Phone + Password) ==========
-router.post('/login', async (req, res) => {
+router.post('/login', loginRateLimiter, validateTenantLogin, async (req, res) => {
     const { phone, password } = req.body;
     
     try {
@@ -326,7 +328,7 @@ router.put('/update-phone/:tenantId', tenantAuth, async (req, res) => {
 
 // ========== INITIATE M-PESA PAYMENT ==========
 
-router.post('/pay', tenantAuth, async (req, res) => {
+router.post('/pay', tenantAuth, validatePayment, async (req, res) => {
     const { tenant_id, amount, payment_type, phone_number } = req.body;
     
     try {

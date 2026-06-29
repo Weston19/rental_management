@@ -12,8 +12,14 @@
   ],
   "routes": [
     {
-      "src": "^/(api/.*|uploads/.*)",
-      "dest": "backend/server-admin.js"
+      "src": "/(.*)",
+      "dest": "backend/server-admin.js",
+      "has": [
+        {
+          "type": "host",
+          "value": "admin.primmeholdings.co.ke"
+        }
+      ]
     },
     {
       "src": "/(.*)",
@@ -26,17 +32,16 @@
       ]
     },
     {
+      "src": "^/(api/.*|uploads/.*)",
+      "dest": "backend/server-admin.js"
+    },
+    {
       "src": "/(.*)",
-      "dest": "backend/server-admin.js",
-      "has": [
-        {
-          "type": "host",
-          "value": "admin.primmeholdings.co.ke"
-        }
-      ]
+      "dest": "backend/server-admin.js"
     }
   ],
   "env": {
-    "NODE_ENV": "production"
+    "NODE_ENV": "production",
+    "BASE_URL": "https://admin.primmeholdings.co.ke"
   }
 }
