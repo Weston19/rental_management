@@ -11,8 +11,6 @@ let currentData = [];
 
 // ========== HELPER FUNCTIONS ==========
 async function apiCall(endpoint, options = {}) {
-    console.log('📡 apiCall:', endpoint, options.method || 'GET');
-    
     const defaultOptions = {
         headers: {
             'Content-Type': 'application/json',
@@ -22,10 +20,8 @@ async function apiCall(endpoint, options = {}) {
     
     try {
         const response = await fetch(`${API_URL}${endpoint}`, { ...defaultOptions, ...options });
-        console.log('📡 Response status:', response.status);
         
         if (response.status === 401) {
-            console.log('📡 Unauthorized - clearing token');
             localStorage.removeItem('token');
             token = null;
             renderAuth();
@@ -33,10 +29,8 @@ async function apiCall(endpoint, options = {}) {
         }
         
         const data = await response.json();
-        console.log('📡 Response data:', data);
         return data;
     } catch (error) {
-        console.error('📡 API Error:', error);
         return null;
     }
 }

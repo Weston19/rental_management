@@ -596,7 +596,6 @@
         renderInvoicesTable(result.invoices || []);
         
     } catch (error) {
-        console.error('Dashboard error:', error);
         document.getElementById('welcomeText').textContent = 'Error loading data';
     }
 }
@@ -606,7 +605,6 @@
     
     // Check if container exists
     if (!container) {
-        console.warn('⚠️ Container not found:', containerId);
         return;
     }
     
@@ -884,7 +882,6 @@ async function initiatePayment() {
         }
     } catch (error) {
         msg.textContent = 'Connection error. Please try again.';
-        console.error('Payment error:', error);
     }
 }
     // ========== LOGOUT ==========
