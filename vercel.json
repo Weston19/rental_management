@@ -2,41 +2,41 @@
   "version": 2,
   "builds": [
     {
-      "src": "server.js",
+      "src": "backend/server-admin.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "backend/server-tenant.js",
       "use": "@vercel/node"
     }
   ],
   "routes": [
     {
-      "src": "/(.*)",
-      "dest": "server.js"
-    }
-  ],
-  "headers": [
+      "src": "^/(api/.*|uploads/.*)",
+      "dest": "backend/server-admin.js"
+    },
     {
-      "source": "/api/(.*)",
-      "headers": [
+      "src": "/(.*)",
+      "dest": "backend/server-tenant.js",
+      "has": [
         {
-          "key": "Cache-Control",
-          "value": "no-cache, no-store, must-revalidate"
-        },
+          "type": "host",
+          "value": "primmeholdings.co.ke"
+        }
+      ]
+    },
+    {
+      "src": "/(.*)",
+      "dest": "backend/server-admin.js",
+      "has": [
         {
-          "key": "Access-Control-Allow-Credentials",
-          "value": "true"
-        },
-        {
-          "key": "Access-Control-Allow-Origin",
-          "value": "*"
-        },
-        {
-          "key": "Access-Control-Allow-Methods",
-          "value": "GET,OPTIONS,PATCH,DELETE,POST,PUT"
-        },
-        {
-          "key": "Access-Control-Allow-Headers",
-          "value": "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization"
+          "type": "host",
+          "value": "admin.primmeholdings.co.ke"
         }
       ]
     }
-  ]
+  ],
+  "env": {
+    "NODE_ENV": "production"
+  }
 }
