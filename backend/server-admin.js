@@ -3,6 +3,8 @@ const cors = require('cors');
 const path = require('path');
 require('dotenv').config();
 
+const { initRedis } = require('./redis');
+
 // Import routes
 const authRoutes = require('./routes/auth');
 const propertyRoutes = require('./routes/properties');
@@ -15,6 +17,9 @@ const settingsRoutes = require('./routes/settings');
 const messageRoutes = require('./routes/messages');
 const webhookRoutes = require('./routes/webhooks');
 const mpesaRoutes = require('./routes/mpesa');
+
+// Initialize Redis
+initRedis();
 
 const app = express();
 

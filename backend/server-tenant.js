@@ -3,12 +3,17 @@ const cors = require('cors');
 const path = require('path');
 require('dotenv').config();
 
+const { initRedis } = require('./redis');
+
 // Import only tenant-facing routes
 const authRoutes = require('./routes/auth');
 const tenantPortalRoutes = require('./routes/tenant-portal');
 const paymentRoutes = require('./routes/payments');
 const messageRoutes = require('./routes/messages');
 const mpesaRoutes = require('./routes/mpesa');
+
+// Initialize Redis
+initRedis();
 
 const app = express();
 
