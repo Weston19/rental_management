@@ -211,6 +211,36 @@ router.post('/stkpush', async (req, res) => {
     
     console.log('📡 STK Push Request:', { phone_number, amount, account_reference });
     
+    // Check if M-Pesa credentials are configured
+    const CONSUMER_KEY = process.env.MPESA_CONSUMER_KEY;
+    const CONSUMER_SECRET = process.env.MPESA_CONSUMER_SECRET;
+    const SHORTCODE = process.env.MPESA_SHORTCODE;
+    const PASSKEY = process.env.MPESA_PASSKEY;
+    const CALLBACK_URL = process.env.MPESA_CALLBACK_URL;
+    
+    if (!CONSUMER_KEY || !CONSUMER_SECRET || !SHORTCODE || !PASSKEY || !CALLBACK_URL) {
+        console.log('⚠️ M-Pesa credentials not configured - returning simulated response');
+        const mockCheckoutId = 'SIM_' + Date.now();
+        
+        await pool.query(
+            `INSERT INTO payment_requests (checkout_request_id, amount, phone_number, status, created_at)
+             VALUES ($1, $2, $3, 'pending', NOW())`,
+            [mockCheckoutId, amount, phone_number]
+        );
+        
+        return res.json({
+            success: true,
+            data: {
+                MerchantRequestID: 'SIM_MERCHANT_' + Date.now(),
+                CheckoutRequestID: mockCheckoutId,
+                ResponseCode: '0',
+                ResponseDescription: 'Simulated STK Push - credentials not configured',
+                CustomerMessage: 'This is a demo mode since M-Pesa is not configured'
+            },
+            message: 'Demo mode: STK Push simulated'
+        });
+    }
+    
     try {
         // Validate
         if (!phone_number || !amount || amount <= 0) {
@@ -253,6 +283,7 @@ router.post('/stkpush', async (req, res) => {
         });
     } catch (error) {
         console.error('❌ STK Push Error:', error.message);
+        console.error('❌ STK Push Stack:', error.stack);
         
         if (error.message.includes('breaker is open')) {
             return res.status(503).json({
