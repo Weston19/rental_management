@@ -17,7 +17,9 @@
     "node-cron": "^3.0.3",
     "path": "^0.12.7",
     "pg": "^8.21.0",
-    "@upstash/redis": "^1.34.3"
+    "@upstash/redis": "^1.34.3",
+    "@upstash/qstash": "^2.8.5",
+    "opossum": "^8.4.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"
