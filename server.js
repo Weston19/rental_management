@@ -31,7 +31,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, 'backend/uploads')));
 app.use(express.static(path.join(__dirname, 'backend/public')));
 
-// API Routes
+// API Routes (STAY THE SAME)
 app.use('/api/auth', authRoutes);
 app.use('/api/properties', propertyRoutes);
 app.use('/api/rooms', roomRoutes);
@@ -49,7 +49,15 @@ app.get('/api/test', (req, res) => {
     res.json({ message: 'Backend is working!' });
 });
 
-// Serve index.html for all other routes (SPA support)
+// Separate URLs for admin and tenant
+app.get('/admin', (req, res) => {
+    res.sendFile(path.join(__dirname, 'backend/public/index.html'));
+});
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'backend/public/tenant-login.html'));
+});
+
+// Catch all remaining routes to admin for SPA support
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'backend/public/index.html'));
 });
