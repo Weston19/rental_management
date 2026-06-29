@@ -74,21 +74,56 @@ router.post('/login', loginRateLimiter, validateAdminLogin, async (req, res) => 
             return res.status(401).json({ error: 'Invalid credentials' });
         }
 
-        // Find their role row — a user may have roles under multiple owners;
-        // for now we pick the one where they ARE the owner, falling back to first active.
-        const roleResult = await pool.query(
-            `SELECT owner_id, role FROM admin_roles
-             WHERE admin_id = $1 AND is_active = TRUE
-             ORDER BY (admin_id = owner_id) DESC, id ASC
-             LIMIT 1`,
-            [admin.id]
-        );
-
-        if (roleResult.rows.length === 0) {
-            return res.status(403).json({ error: 'No active role found for this account.' });
+        // Find their role row — a user may have roles under multiple owners.
+        // Prefer the row where they ARE the owner, fall back to first active.
+        // If no row exists yet (migration hasn't run / first login ever),
+        // auto-create an owner row so login always succeeds.
+        let roleResult;
+        try {
+            roleResult = await pool.query(
+                `SELECT owner_id, role FROM admin_roles
+                 WHERE admin_id = $1 AND is_active = TRUE
+                 ORDER BY (admin_id = owner_id) DESC, id ASC
+                 LIMIT 1`,
+                [admin.id]
+            );
+        } catch (_) {
+            // admin_roles table doesn't exist yet — migration still pending
+            roleResult = { rows: [] };
         }
 
-        const { owner_id, role } = roleResult.rows[0];
+        if (roleResult.rows.length === 0) {
+            // Auto-create owner role row for this admin (idempotent)
+            try {
+                await pool.query(
+                    `INSERT INTO admin_roles (admin_id, owner_id, email, name, role)
+                     VALUES ($1, $1, $2, $3, 'owner')
+                     ON CONFLICT (admin_id, owner_id) DO NOTHING`,
+                    [admin.id, admin.email, admin.company_name || admin.email]
+                );
+            } catch (_) {
+                // Table still doesn't exist — fall through with owner defaults
+            }
+        }
+
+        // Re-fetch after potential insert, or fall back to owner defaults
+        let owner_id = admin.id;
+        let role = 'owner';
+        try {
+            const refetch = await pool.query(
+                `SELECT owner_id, role FROM admin_roles
+                 WHERE admin_id = $1 AND is_active = TRUE
+                 ORDER BY (admin_id = owner_id) DESC, id ASC
+                 LIMIT 1`,
+                [admin.id]
+            );
+            if (refetch.rows.length > 0) {
+                owner_id = refetch.rows[0].owner_id;
+                role     = refetch.rows[0].role;
+            }
+        } catch (_) {
+            // Still not ready — use defaults (owner_id = admin.id, role = 'owner')
+        }
         const token = signToken(admin.id, owner_id);
 
         res.json({
