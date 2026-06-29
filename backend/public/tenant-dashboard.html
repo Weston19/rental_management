@@ -434,13 +434,13 @@
     <div class="page" id="page-settings">
         <h4 style="font-size:16px; color:#333; margin-bottom:10px;">Account Settings</h4>
         <div style="background:white; border-radius:10px; padding:16px; border:1px solid #e0e0e0;">
-            <label>Current Password</label>
-            <input type="password" id="currentPwd" placeholder="Enter current password">
-            <label>New Password</label>
-            <input type="password" id="newPwd" placeholder="Enter new password">
-            <label>Confirm Password</label>
-            <input type="password" id="confirmPwd" placeholder="Confirm new password">
-            <button class="btn-primary" style="width:100%; margin-top:12px; padding:10px; border:none; border-radius:6px; cursor:pointer; font-size:14px;" onclick="changePassword()">Update Password</button>
+            <label style="font-size:13px; font-weight:500; color:#555; display:block; margin-top:0; margin-bottom:4px;">Current Password</label>
+            <input type="password" id="currentPwd" placeholder="Enter current password" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:6px; font-size:14px;">
+            <label style="font-size:13px; font-weight:500; color:#555; display:block; margin-top:12px; margin-bottom:4px;">New Password</label>
+            <input type="password" id="newPwd" placeholder="Enter new password" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:6px; font-size:14px;">
+            <label style="font-size:13px; font-weight:500; color:#555; display:block; margin-top:12px; margin-bottom:4px;">Confirm Password</label>
+            <input type="password" id="confirmPwd" placeholder="Confirm new password" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:6px; font-size:14px;">
+            <button class="btn-primary" style="width:100%; margin-top:18px; padding:10px; border:none; border-radius:6px; cursor:pointer; font-size:14px;" onclick="changePassword()">Update Password</button>
             <div id="pwdMsg" style="color:#e74c3c; font-size:13px; margin-top:8px;"></div>
         </div>
     </div>
@@ -449,11 +449,11 @@
     <div class="page" id="page-phone">
         <h4 style="font-size:16px; color:#333; margin-bottom:10px;">Update Phone Number</h4>
         <div style="background:white; border-radius:10px; padding:16px; border:1px solid #e0e0e0;">
-            <label>Current Phone</label>
-            <input type="tel" id="currentPhone" readonly style="background:#f0f0f0;">
-            <label>New Phone Number</label>
-            <input type="tel" id="newPhone" placeholder="Enter new phone number">
-            <button class="btn-primary" style="width:100%; margin-top:12px; padding:10px; border:none; border-radius:6px; cursor:pointer; font-size:14px;" onclick="updatePhone()">Update Phone</button>
+            <label style="font-size:13px; font-weight:500; color:#555; display:block; margin-top:0; margin-bottom:4px;">Current Phone</label>
+            <input type="tel" id="currentPhone" readonly style="width:100%; padding:10px; border:1px solid #ddd; border-radius:6px; font-size:14px; background:#f0f0f0;">
+            <label style="font-size:13px; font-weight:500; color:#555; display:block; margin-top:12px; margin-bottom:4px;">New Phone Number</label>
+            <input type="tel" id="newPhone" placeholder="Enter new phone number" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:6px; font-size:14px;">
+            <button class="btn-primary" style="width:100%; margin-top:18px; padding:10px; border:none; border-radius:6px; cursor:pointer; font-size:14px;" onclick="updatePhone()">Update Phone</button>
             <div id="phoneMsg" style="color:#e74c3c; font-size:13px; margin-top:8px;"></div>
         </div>
     </div>
