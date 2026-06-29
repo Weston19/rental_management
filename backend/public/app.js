@@ -4523,11 +4523,9 @@ window.deleteExpense = async (id) => {
 currentFinancialView = 'summary';
 
 async function renderFinancials() {
-    console.log('🟢 renderFinancials called');
     const content = document.getElementById('content');
     
     if (!content) {
-        console.error('❌ Content element not found');
         return;
     }
     
@@ -4542,7 +4540,6 @@ async function renderFinancials() {
     
     document.querySelectorAll('.financial-tab').forEach(btn => {
         btn.onclick = () => {
-            console.log('🟢 Tab clicked:', btn.getAttribute('data-view'));
             currentFinancialView = btn.getAttribute('data-view');
             renderFinancials();
         };

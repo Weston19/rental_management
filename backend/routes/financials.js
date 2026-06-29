@@ -67,7 +67,6 @@ router.post('/summaries/generate', auth, async (req, res) => {
         if (!validPassword) return res.status(401).json({ error: 'Invalid password' });
         
         const targetMonth = new Date(month_year);
-        const previousMonth = new Date(targetMonth.getFullYear(), targetMonth.getMonth() - 1, 1);
         
         const property = await pool.query('SELECT * FROM properties WHERE id = $1', [property_id]);
         if (property.rows.length === 0) return res.status(404).json({ error: 'Property not found' });
@@ -85,11 +84,11 @@ router.post('/summaries/generate', auth, async (req, res) => {
             JOIN tenants t ON p.tenant_id = t.id
             JOIN rooms r ON t.room_id = r.id
             WHERE t.property_id = $1 AND p.payment_type = 'rent' AND DATE_TRUNC('month', p.payment_date) = DATE_TRUNC('month', $2::date)
-        `, [property_id, previousMonth]);
-        
+        `, [property_id, targetMonth]);
+
         const paymentMap = {};
         payments.rows.forEach(p => { paymentMap[p.house_no] = (paymentMap[p.house_no] || 0) + parseFloat(p.amount); });
-        
+
         let collections_office = 0;
         const roomStatuses = [];
         for (const room of rooms.rows) {
@@ -101,10 +100,10 @@ router.post('/summaries/generate', auth, async (req, res) => {
             else { status = 'N.P'; amount = 0; }
             roomStatuses.push({ room_id: room.id, house_no: room.house_no, status: status, amount: amount });
         }
-        
+
         const expenses = await pool.query(`
             SELECT * FROM expenses WHERE property_id = $1 AND DATE_TRUNC('month', expense_date) = DATE_TRUNC('month', $2::date)
-        `, [property_id, previousMonth]);
+        `, [property_id, targetMonth]);
         
         const total_expenses = expenses.rows.reduce((sum, e) => sum + parseFloat(e.amount), 0);
         const total_collections = collections_office + (parseFloat(collections_landlord) || 0);
@@ -115,7 +114,7 @@ router.post('/summaries/generate', auth, async (req, res) => {
             `INSERT INTO financial_summaries (property_id, month_year, commission_payable, collections_office, collections_landlord,
              total_collections, total_expenses, total_deductions, net_rent, total_net_rent, deposited_date, created_by)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
-            [property_id, previousMonth, commission_payable || 0, collections_office, collections_landlord || 0,
+            [property_id, targetMonth, commission_payable || 0, collections_office, collections_landlord || 0,
              total_collections, total_expenses, total_deductions, net_rent, net_rent, new Date(), req.adminId]
         );
         
