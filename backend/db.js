@@ -1,13 +1,14 @@
 const { Pool } = require('pg');
 require('dotenv').config();
 
+// Bypass TLS errors for Supabase
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
 console.log('🔍 DB Connection string (partial):', process.env.NEXT_PUBLIC_SUPABASE_URL_POSTGRES_URL ? process.env.NEXT_PUBLIC_SUPABASE_URL_POSTGRES_URL.substring(0, 50) + '...' : 'NOT FOUND!');
 
 const pool = new Pool({
     connectionString: process.env.NEXT_PUBLIC_SUPABASE_URL_POSTGRES_URL,
-    ssl: {
-        rejectUnauthorized: false
-    }
+    ssl: true
 });
 
 // Test connection
