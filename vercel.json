@@ -46,6 +46,6 @@
   ],
   "env": {
     "NODE_ENV": "production",
-    "BASE_URL": "https://admin.primmeholdings.co.ke"
+    "BASE_URL": "https://rental-management-jet.vercel.app/admin"
   }
 }
