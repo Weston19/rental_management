@@ -40,6 +40,34 @@ router.put('/update-company', auth, async (req, res) => {
     }
 });
 
+// Change password
+router.put('/change-password', auth, async (req, res) => {
+    const { old_password, new_password } = req.body;
+
+    if (!old_password || !new_password) {
+        return res.status(400).json({ error: 'Old and new passwords are required' });
+    }
+    if (new_password.length < 4) {
+        return res.status(400).json({ error: 'New password must be at least 4 characters' });
+    }
+
+    try {
+        const result = await pool.query('SELECT password FROM admin WHERE id = $1', [req.adminId]);
+        if (result.rows.length === 0) return res.status(404).json({ error: 'Admin not found' });
+
+        const match = await bcrypt.compare(old_password, result.rows[0].password);
+        if (!match) return res.status(400).json({ error: 'Current password is incorrect' });
+
+        const hashed = await bcrypt.hash(new_password, 10);
+        await pool.query('UPDATE admin SET password = $1 WHERE id = $2', [hashed, req.adminId]);
+
+        res.json({ message: 'Password updated successfully' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 // SMS TEMPLATES 
 
 // Get all templates created by the admin 
