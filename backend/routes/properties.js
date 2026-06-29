@@ -1,22 +1,19 @@
 const express = require('express');
 const pool = require('../db');
 const auth = require('../middleware/auth');
-const { getRedisClient } = require('../redis');
+const redis = require('../redis');
 
 const router = express.Router();
 
 // Get all properties
 router.get('/', auth, async (req, res) => {
-    const redis = getRedisClient();
     const cacheKey = 'all_properties';
     
     try {
         // Check cache first
-        if (redis) {
-            const cached = await redis.get(cacheKey);
-            if (cached) {
-                return res.json(cached);
-            }
+        const cached = await redis.get(cacheKey);
+        if (cached) {
+            return res.json(typeof cached === 'string' ? JSON.parse(cached) : cached);
         }
         
         // Query Supabase
@@ -31,9 +28,7 @@ router.get('/', auth, async (req, res) => {
         `);
         
         // Cache the result
-        if (redis) {
-            await redis.set(cacheKey, JSON.stringify(result.rows), { ex: 3600 });
-        }
+        await redis.set(cacheKey, JSON.stringify(result.rows), { ex: 3600 });
         
         res.json(result.rows);
     } catch (error) {
@@ -44,16 +39,13 @@ router.get('/', auth, async (req, res) => {
 
 // Get single property
 router.get('/:id', auth, async (req, res) => {
-    const redis = getRedisClient();
     const cacheKey = `property:${req.params.id}`;
     
     try {
         // Check cache first
-        if (redis) {
-            const cached = await redis.get(cacheKey);
-            if (cached) {
-                return res.json(cached);
-            }
+        const cached = await redis.get(cacheKey);
+        if (cached) {
+            return res.json(typeof cached === 'string' ? JSON.parse(cached) : cached);
         }
         
         // Query Supabase
@@ -85,9 +77,7 @@ router.get('/:id', auth, async (req, res) => {
         const data = { ...property.rows[0], rooms: rooms.rows };
         
         // Cache the result
-        if (redis) {
-            await redis.set(cacheKey, JSON.stringify(data), { ex: 3600 });
-        }
+        await redis.set(cacheKey, JSON.stringify(data), { ex: 3600 });
         
         res.json(data);
     } catch (error) {
@@ -99,7 +89,6 @@ router.get('/:id', auth, async (req, res) => {
 // Add property
 router.post('/', auth, async (req, res) => {
     const { name, location, landlord_name, total_rooms, occupied_rooms, billing_day, penalty_amount, image_url } = req.body;
-    const redis = getRedisClient();
     
     try {
         const result = await pool.query(
@@ -109,9 +98,7 @@ router.post('/', auth, async (req, res) => {
         );
         
         // Invalidate cache
-        if (redis) {
-            await redis.del('all_properties');
-        }
+        await redis.del('all_properties');
         
         res.json(result.rows[0]);
     } catch (error) {
@@ -123,7 +110,6 @@ router.post('/', auth, async (req, res) => {
 // Update property
 router.put('/:id', auth, async (req, res) => {
     const { name, location, landlord_name, total_rooms, occupied_rooms, billing_day, penalty_amount, image_url } = req.body;
-    const redis = getRedisClient();
     
     try {
         const result = await pool.query(
@@ -140,10 +126,8 @@ router.put('/:id', auth, async (req, res) => {
         }
         
         // Invalidate cache
-        if (redis) {
-            await redis.del('all_properties');
-            await redis.del(`property:${req.params.id}`);
-        }
+        await redis.del('all_properties');
+        await redis.del(`property:${req.params.id}`);
         
         res.json(result.rows[0]);
     } catch (error) {
@@ -154,8 +138,6 @@ router.put('/:id', auth, async (req, res) => {
 
 // Delete property
 router.delete('/:id', auth, async (req, res) => {
-    const redis = getRedisClient();
-    
     try {
         // Check if property exists
         const property = await pool.query('SELECT id FROM properties WHERE id = $1', [req.params.id]);
@@ -167,10 +149,8 @@ router.delete('/:id', auth, async (req, res) => {
         await pool.query('DELETE FROM properties WHERE id = $1', [req.params.id]);
         
         // Invalidate cache
-        if (redis) {
-            await redis.del('all_properties');
-            await redis.del(`property:${req.params.id}`);
-        }
+        await redis.del('all_properties');
+        await redis.del(`property:${req.params.id}`);
         
         res.json({ message: 'Property deleted successfully' });
     } catch (error) {

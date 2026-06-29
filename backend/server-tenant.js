@@ -3,7 +3,7 @@ const cors = require('cors');
 const path = require('path');
 require('dotenv').config();
 
-const { initRedis } = require('./redis');
+const redis = require('./redis');
 
 // Import only tenant-facing routes
 const authRoutes = require('./routes/auth');
@@ -11,9 +11,6 @@ const tenantPortalRoutes = require('./routes/tenant-portal');
 const paymentRoutes = require('./routes/payments');
 const messageRoutes = require('./routes/messages');
 const mpesaRoutes = require('./routes/mpesa');
-
-// Initialize Redis
-initRedis();
 
 const app = express();
 
@@ -35,6 +32,17 @@ app.use('/api/mpesa', mpesaRoutes);
 
 app.get('/api/test', (req, res) => {
     res.json({ message: 'Tenant backend working!' });
+});
+
+// Test Redis connection
+app.get('/api/test-redis', async (req, res) => {
+  try {
+    await redis.set('test', 'Redis is working!', { ex: 60 });
+    const result = await redis.get('test');
+    res.json({ message: result });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // Tenant login

@@ -3,7 +3,7 @@ const cors = require('cors');
 const path = require('path');
 require('dotenv').config();
 
-const { initRedis } = require('./redis');
+const redis = require('./redis');
 
 // Import routes
 const authRoutes = require('./routes/auth');
@@ -17,9 +17,6 @@ const settingsRoutes = require('./routes/settings');
 const messageRoutes = require('./routes/messages');
 const webhookRoutes = require('./routes/webhooks');
 const mpesaRoutes = require('./routes/mpesa');
-
-// Initialize Redis
-initRedis();
 
 const app = express();
 
@@ -47,6 +44,17 @@ app.use('/api/mpesa', mpesaRoutes);
 
 app.get('/api/test', (req, res) => {
     res.json({ message: 'Admin backend working!' });
+});
+
+// Test Redis connection
+app.get('/api/test-redis', async (req, res) => {
+  try {
+    await redis.set('test', 'Redis is working!', { ex: 60 });
+    const result = await redis.get('test');
+    res.json({ message: result });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // Admin dashboard
