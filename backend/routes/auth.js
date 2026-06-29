@@ -6,11 +6,13 @@ const auth = require('../middleware/auth');
 
 const router = express.Router();
 
-// Signup
+// Sign up
 router.post('/signup', async (req, res) => {
     const { email, password, company_name } = req.body;
     
     try {
+        console.log('📝 Signup attempt:', { email, company_name });
+        
         const existing = await pool.query('SELECT * FROM admin WHERE email = $1', [email]);
         if (existing.rows.length > 0) {
             return res.status(400).json({ error: 'Email already registered' });
@@ -27,8 +29,9 @@ router.post('/signup', async (req, res) => {
         
         res.json({ token, admin: result.rows[0] });
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Server error' });
+        console.error('❌ Signup error:', error.message);
+        console.error('❌ Error stack:', error.stack);
+        res.status(500).json({ error: 'Server error', details: error.message });
     }
 });
 
