@@ -12,14 +12,8 @@
   ],
   "routes": [
     {
-      "src": "/(.*)",
-      "dest": "backend/server-admin.js",
-      "has": [
-        {
-          "type": "host",
-          "value": "admin.primmeholdings.co.ke"
-        }
-      ]
+      "src": "/admin(.*)",
+      "dest": "backend/server-admin.js"
     },
     {
       "src": "/(.*)",
@@ -27,7 +21,7 @@
       "has": [
         {
           "type": "host",
-          "value": "admin.rental-management-jet.vercel.app"
+          "value": "admin.primmeholdings.co.ke"
         }
       ]
     },
@@ -42,16 +36,6 @@
       ]
     },
     {
-      "src": "/(.*)",
-      "dest": "backend/server-tenant.js",
-      "has": [
-        {
-          "type": "host",
-          "value": "rental-management-jet.vercel.app"
-        }
-      ]
-    },
-    {
       "src": "^/(api/.*|uploads/.*)",
       "dest": "backend/server-admin.js"
     },
@@ -62,6 +46,6 @@
   ],
   "env": {
     "NODE_ENV": "production",
-    "BASE_URL": "https://admin.rental-management-jet.vercel.app"
+    "BASE_URL": "https://rental-management-jet.vercel.app/admin"
   }
 }
