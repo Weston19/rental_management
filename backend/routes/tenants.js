@@ -62,6 +62,14 @@ router.get('/:id', auth, async (req, res) => {
 });
 
 
+// Helper to convert empty string to null
+const toNullIfEmpty = (value) => {
+    if (value === undefined || value === null || value.trim() === '') {
+        return null;
+    }
+    return value;
+};
+
 // Add tenant - fname,lastname,phone required
 router.post('/', auth, async (req, res) => {
     const { 
@@ -77,9 +85,11 @@ router.post('/', auth, async (req, res) => {
             return res.status(400).json({ error: 'Phone number already exists' });
         }
         
+        const cleanNationalId = toNullIfEmpty(national_id);
+        
         // Check if national ID exists (only if provided)
-        if (national_id && national_id.trim() !== '') {
-            const existingId = await pool.query('SELECT * FROM tenants WHERE national_id = $1 AND is_deleted = FALSE', [national_id]);
+        if (cleanNationalId) {
+            const existingId = await pool.query('SELECT * FROM tenants WHERE national_id = $1 AND is_deleted = FALSE', [cleanNationalId]);
             if (existingId.rows.length > 0) {
                 return res.status(400).json({ error: 'National ID already exists' });
             }
@@ -105,7 +115,19 @@ router.post('/', auth, async (req, res) => {
             `INSERT INTO tenants 
             (first_name, last_name, phone, email, national_id, front_id_image, back_id_image, property_id, room_id, account_number, move_in_date, is_deleted) 
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, FALSE) RETURNING *`,
-            [first_name, last_name, phone, email, national_id || null, front_id_image, back_id_image, property_id, room_id, account_number, move_in_date]
+            [
+                first_name, 
+                last_name, 
+                phone, 
+                toNullIfEmpty(email), 
+                cleanNationalId, 
+                toNullIfEmpty(front_id_image), 
+                toNullIfEmpty(back_id_image), 
+                property_id, 
+                room_id, 
+                account_number, 
+                toNullIfEmpty(move_in_date)
+            ]
         );
         
         // Update room status to occupied
@@ -135,8 +157,10 @@ router.put('/:id', auth, async (req, res) => {
             return res.status(400).json({ error: 'Phone number already exists' });
         }
         
-        const existingId = await pool.query('SELECT * FROM tenants WHERE national_id = $1 AND id != $2 AND is_deleted = FALSE', [national_id, req.params.id]);
-        if (existingId.rows.length > 0) {
+        const cleanNationalId = toNullIfEmpty(national_id);
+        
+        const existingId = await pool.query('SELECT * FROM tenants WHERE national_id = $1 AND id != $2 AND is_deleted = FALSE', [cleanNationalId, req.params.id]);
+        if (existingId.rows.length > 0 && cleanNationalId) {
             return res.status(400).json({ error: 'National ID already exists' });
         }
         
@@ -148,7 +172,21 @@ router.put('/:id', auth, async (req, res) => {
                 front_id_image = $6, back_id_image = $7, profile_image = $8,
                 property_id = $9, room_id = $10, account_number = $11, move_in_date = $12
              WHERE id = $13 AND is_deleted = FALSE RETURNING *`,
-            [first_name, last_name, phone, email, national_id, front_id_image, back_id_image, profile_image, property_id, room_id, account_number, move_in_date, req.params.id]
+            [
+                first_name, 
+                last_name, 
+                phone, 
+                toNullIfEmpty(email), 
+                cleanNationalId, 
+                toNullIfEmpty(front_id_image), 
+                toNullIfEmpty(back_id_image), 
+                toNullIfEmpty(profile_image), 
+                property_id, 
+                room_id, 
+                account_number, 
+                toNullIfEmpty(move_in_date), 
+                req.params.id
+            ]
         );
         
         if (result.rows.length === 0) {
