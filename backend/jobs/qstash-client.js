@@ -1,20 +1,32 @@
-const { Client } = require('@upstash/qstash');
+let qstashClient;
+let qstashAvailable = false;
 
-// Initialize QStash client
-const qstashClient = new Client({
-    token: process.env.QSTASH_TOKEN
-});
+// Initialize QStash client only if token is available
+if (process.env.QSTASH_TOKEN) {
+    const { Client } = require('@upstash/qstash');
+    qstashClient = new Client({
+        token: process.env.QSTASH_TOKEN
+    });
+    qstashAvailable = true;
+    console.log('✅ QStash initialized');
+} else {
+    console.log('⚠️ QStash not configured (optional)');
+}
 
 /**
- * Queue an STK Push payment request
+ * Queue an STK Push payment request (optional)
  */
 async function queueStkPush(data) {
+    if (!qstashAvailable) {
+        console.log('⚠️ QStash not configured, skipping queue');
+        return { success: true, message: 'QStash not configured' };
+    }
     try {
         const result = await qstashClient.publishJSON({
             url: `${process.env.BASE_URL || 'http://localhost:5016'}/api/qstash/process-stkpush`,
             body: data,
-            retries: 3, // Retry up to 3 times
-            delay: 0, // Process immediately
+            retries: 3,
+            delay: 0,
             deduplicationId: `stkpush-${data.tenantId}-${Date.now()}`
         });
         
@@ -27,14 +39,18 @@ async function queueStkPush(data) {
 }
 
 /**
- * Queue M-Pesa callback processing
+ * Queue M-Pesa callback processing (optional)
  */
 async function queueCallbackProcessing(data) {
+    if (!qstashAvailable) {
+        console.log('⚠️ QStash not configured, processing synchronously');
+        return { success: true, message: 'QStash not configured' };
+    }
     try {
         const result = await qstashClient.publishJSON({
             url: `${process.env.BASE_URL || 'http://localhost:5016'}/api/qstash/process-callback`,
             body: data,
-            retries: 5, // More retries for callbacks
+            retries: 5,
             delay: 0,
             deduplicationId: `callback-${data.Body?.stkCallback?.CheckoutRequestID || Date.now()}`
         });
@@ -48,9 +64,13 @@ async function queueCallbackProcessing(data) {
 }
 
 /**
- * Queue monthly bill generation
+ * Queue monthly bill generation (optional)
  */
 async function queueMonthlyBills() {
+    if (!qstashAvailable) {
+        console.log('⚠️ QStash not configured, skipping queue');
+        return { success: true, message: 'QStash not configured' };
+    }
     try {
         const result = await qstashClient.publishJSON({
             url: `${process.env.BASE_URL || 'http://localhost:5016'}/api/qstash/generate-bills`,
@@ -71,5 +91,6 @@ module.exports = {
     qstashClient,
     queueStkPush,
     queueCallbackProcessing,
-    queueMonthlyBills
+    queueMonthlyBills,
+    isQStashAvailable: () => qstashAvailable
 };

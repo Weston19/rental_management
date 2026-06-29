@@ -322,27 +322,30 @@ router.post('/callback', async (req, res) => {
     // Always respond to Safaricom immediately (CRITICAL - must respond within 5 seconds)
     res.json({ ResultCode: 0, ResultDesc: 'Success' });
     
-    // Queue callback processing via QStash for reliability
-    console.log('📤 Queuing callback processing...');
-    await queueCallbackProcessing(req.body);
+    // Check if QStash is available, if not process right away
+    const { isQStashAvailable } = require('../jobs/qstash-client');
+    if (isQStashAvailable()) {
+        // Queue callback processing via QStash for reliability
+        console.log('📤 Queuing callback processing via QStash...');
+        await queueCallbackProcessing(req.body);
+    } else {
+        // Process synchronously since QStash not set up
+        console.log('⚠️ Processing callback synchronously...');
+        await processCallback(req.body);
+    }
 });
 
-// 4. Process Callback (Async) - FIXED
+// 4. Process Callback
 async function processCallback(data) {
-    console.log('🔄 Processing callback...');
-    
     try {
-        // Check if it's the STK Push callback format
+        console.log('🔄 Processing callback...');
         const result = data.Body?.stkCallback;
         
         if (!result) {
             console.log('❌ Invalid callback format - missing stkCallback');
             console.log('📦 Received data structure:', Object.keys(data));
-            
-            // Try to check if it's a C2B callback
             if (data.TransactionType) {
                 console.log('📦 This appears to be a C2B callback, not STK Push');
-                console.log('💡 For C2B, implement a separate handler');
             }
             return;
         }
@@ -367,7 +370,6 @@ async function processCallback(data) {
         }
         
         if (resultCode === 0) {
-            // Payment successful
             const callbackMetadata = result.CallbackMetadata?.Item || [];
             const amount = callbackMetadata.find(item => item.Name === 'Amount')?.Value;
             const mpesaReceipt = callbackMetadata.find(item => item.Name === 'MpesaReceiptNumber')?.Value;
@@ -381,11 +383,9 @@ async function processCallback(data) {
                 return;
             }
             
-            // Detect payment type
             const { payment_type, house_no, isCombined } = detectPaymentType(accountReference);
             console.log('🔍 Detected:', { payment_type, house_no, isCombined });
             
-            // Find tenant by house_no
             const tenant = await pool.query(
                 `SELECT t.id, t.first_name, t.last_name, t.phone
                  FROM tenants t 
@@ -395,117 +395,6 @@ async function processCallback(data) {
             );
             
             if (tenant.rows.length === 0) {
-                // Store as unassigned payment
-                await pool.query(
-                    `INSERT INTO unassigned_payments (account_number, amount, transaction_id, phone_number, payment_date)
-                     VALUES ($1, $2, $3, $4, NOW())`,
-                    [accountReference, amount, mpesaReceipt, phoneNumber]
-                );
-                console.log('⚠️ Unassigned payment:', accountReference);
-                return;
-            }
-            
-            const tenantId = tenant.rows[0].id;
-            
-            // Record the payment
-            await pool.query(
-                `INSERT INTO payments (tenant_id, amount, payment_type, transaction_id, source, payment_date)
-                 VALUES ($1, $2, $3, $4, 'auto', NOW())`,
-                [tenantId, amount, payment_type, mpesaReceipt]
-            );
-            
-            console.log('✅ Payment recorded:', { tenantId, amount, payment_type, mpesaReceipt });
-            
-            // Apply payment to bills if rent or penalty
-            if (payment_type === 'rent' || payment_type === 'penalty') {
-                await applyPaymentToBills(tenantId, amount, mpesaReceipt);
-            }
-            
-            // Update deposit balance if deposit
-            if (payment_type === 'deposit') {
-                await pool.query(
-                    `UPDATE tenants SET deposit_paid = deposit_paid + $1, 
-                     deposit_balance = deposit_balance - $1 
-                     WHERE id = $2`,
-                    [amount, tenantId]
-                );
-            }
-            
-            // Mark callback as processed
-            await pool.query(
-                'UPDATE mpesa_callbacks SET processed = TRUE WHERE id = (SELECT id FROM mpesa_callbacks ORDER BY id DESC LIMIT 1)',
-                []
-            );
-            
-        } else {
-            console.log('❌ Payment failed:', resultDesc);
-        }
-    } catch (error) {
-        console.error('❌ Callback processing error:', error);
-        
-        // Store failed webhook for retry
-        try {
-            await pool.query(
-                `INSERT INTO mpesa_webhook_queue (payload, attempts, status, error_message)
-                 VALUES ($1, 0, 'pending', $2)`,
-                [data, error.message]
-            );
-        } catch (dbError) {
-            console.error('❌ Failed to store webhook:', dbError);
-        }
-    }
-}
-
-// 4. Process Callback (Async)
-async function processCallback(data) {
-    try {
-        const result = data.Body?.stkCallback;
-        
-        if (!result) {
-            console.log('❌ Invalid callback format');
-            return;
-        }
-        
-        const checkoutRequestID = result.CheckoutRequestID;
-        const resultCode = result.ResultCode;
-        const resultDesc = result.ResultDesc;
-        
-        // Check for duplicate transaction
-        const existing = await pool.query(
-            'SELECT id FROM payments WHERE transaction_id = $1',
-            [checkoutRequestID]
-        );
-        
-        if (existing.rows.length > 0) {
-            console.log('⚠️ Duplicate transaction ignored:', checkoutRequestID);
-            return;
-        }
-        
-        if (resultCode === 0) {
-            // Payment successful
-            const callbackMetadata = result.CallbackMetadata?.Item || [];
-            const amount = callbackMetadata.find(item => item.Name === 'Amount')?.Value;
-            const mpesaReceipt = callbackMetadata.find(item => item.Name === 'MpesaReceiptNumber')?.Value;
-            const phoneNumber = callbackMetadata.find(item => item.Name === 'PhoneNumber')?.Value;
-            const accountReference = callbackMetadata.find(item => item.Name === 'AccountReference')?.Value;
-            
-            console.log('💰 Payment details:', { amount, mpesaReceipt, phoneNumber, accountReference });
-            
-            // Detect payment type
-            const { payment_type, house_no, isCombined } = detectPaymentType(accountReference);
-            console.log('🔍 Detected:', { payment_type, house_no, isCombined });
-            
-            // Find tenant by house_no
-            const tenant = await pool.query(
-                `SELECT t.id, t.first_name, t.last_name, t.phone
-                 FROM tenants t 
-                 JOIN rooms r ON t.room_id = r.id 
-                 WHERE r.house_no = $1 AND t.is_deleted = FALSE`,
-                [house_no]
-            );
-            
-            if (tenant.rows.length === 0) {
-                // Store as unassigned payment
                 await pool.query(
                     `INSERT INTO unassigned_payments (account_number, amount, transaction_id, phone_number, payment_date)
                      VALUES ($1, $2, $3, $4, NOW())`,
@@ -518,21 +407,16 @@ async function processCallback(data) {
             const tenantId = tenant.rows[0].id;
             
             if (isCombined) {
-                // Process combined payment
                 await processCombinedPayment(tenantId, amount, mpesaReceipt, house_no);
             } else {
-                // Single payment type
                 await pool.query(
                     `INSERT INTO payments (tenant_id, amount, payment_type, transaction_id, source, payment_date)
                      VALUES ($1, $2, $3, $4, 'auto', NOW())`,
                     [tenantId, amount, payment_type, mpesaReceipt]
                 );
-                
                 if (payment_type === 'rent' || payment_type === 'penalty') {
                     await applyPaymentToBills(tenantId, amount, mpesaReceipt);
                 }
-                
-                // Update deposit balance if deposit
                 if (payment_type === 'deposit') {
                     await pool.query(
                         `UPDATE tenants SET deposit_paid = deposit_paid + $1, 
@@ -545,11 +429,6 @@ async function processCallback(data) {
             
             console.log('✅ Payment recorded:', { tenantId, amount, payment_type, mpesaReceipt });
             
-            // Send SMS receipt to tenant
-            const smsMessage = `Hello ${tenant.rows[0].first_name} ${tenant.rows[0].last_name}, we have received your payment of KES ${amount} for ${payment_type} on ${new Date().toLocaleDateString()}. Your current balance will update shortly. Thank you.`;
-            console.log('📧 SMS would be sent:', smsMessage);
-            
-            // Mark callback as processed
             await pool.query(
                 'UPDATE mpesa_callbacks SET processed = TRUE WHERE raw_data = $1',
                 [data]
@@ -560,13 +439,11 @@ async function processCallback(data) {
         }
     } catch (error) {
         console.error('❌ Callback processing error:', error);
-        
-        // Store failed webhook for retry
         try {
             await pool.query(
                 `INSERT INTO mpesa_webhook_queue (payload, attempts, status, error_message)
-                 VALUES ($1, $2, 'pending', $3)`,
-                [data, 0, error.message]
+                 VALUES ($1, 0, 'pending', $2)`,
+                [data, error.message]
             );
         } catch (dbError) {
             console.error('❌ Failed to store webhook:', dbError);
