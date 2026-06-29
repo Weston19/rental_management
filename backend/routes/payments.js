@@ -2,335 +2,304 @@ const express = require('express');
 const pool = require('../db');
 const auth = require('../middleware/auth');
 const bcrypt = require('bcrypt');
+const { blockViewerWrites, requireOwner } = require('../middleware/requireRole');
 
 const router = express.Router();
 
-// Get all payments
-router.get('/', auth, async (req, res) => {
-    try {
-        const result = await pool.query(`
-            SELECT p.*, 
-                   t.first_name, t.last_name, t.phone,
-                   r.house_no,
-                   pr.name as property_name
-            FROM payments p
-            LEFT JOIN tenants t ON p.tenant_id = t.id
-            LEFT JOIN rooms r ON t.room_id = r.id
-            LEFT JOIN properties pr ON t.property_id = pr.id
-            ORDER BY p.payment_date DESC, p.id DESC
-        `);
-        res.json(result.rows);
-    } catch (error) {
-        console.error('GET /payments error:', error);
-        res.status(500).json({ error: error.message });
+router.use(auth, blockViewerWrites);
+
+// ─── Helper: clean and parse amount string ────────────────────────────────────
+function parseAmount(raw) {
+    if (typeof raw === 'string') {
+        raw = raw.replace(/,/g, '').replace(/[^0-9.]/g, '');
+        const parts = raw.split('.');
+        if (parts.length > 2) raw = parts[0] + '.' + parts.slice(1).join('');
     }
-});
+    return parseFloat(raw);
+}
 
-// Get single payment
-router.get('/:id', auth, async (req, res) => {
-    try {
-        const result = await pool.query(`
-            SELECT p.*, t.first_name, t.last_name, t.phone,
-                   r.house_no, pr.name as property_name
-            FROM payments p
-            LEFT JOIN tenants t ON p.tenant_id = t.id
-            LEFT JOIN rooms r ON t.room_id = r.id
-            LEFT JOIN properties pr ON t.property_id = pr.id
-            WHERE p.id = $1
-        `, [req.params.id]);
-        if (result.rows.length === 0) return res.status(404).json({ error: 'Payment not found' });
-        res.json(result.rows[0]);
-    } catch (error) {
-        console.error('GET /payments/:id error:', error);
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// Get payments by tenant
-router.get('/tenant/:tenantId', auth, async (req, res) => {
-    try {
-        const result = await pool.query(`
-            SELECT * FROM payments WHERE tenant_id = $1 ORDER BY payment_date DESC
-        `, [req.params.tenantId]);
-        res.json(result.rows);
-    } catch (error) {
-        console.error('GET /payments/tenant/:tenantId error:', error);
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// ========== CREATE PAYMENT ==========
-router.post('/', auth, async (req, res) => {
-    const { tenant_id, amount, payment_date, payment_type, transaction_id, notes, password } = req.body;
-    
-    console.log('📡 Creating payment:', { tenant_id, amount, payment_date, payment_type });
-    
-    try {
-        // Verify admin password
-        const admin = await pool.query('SELECT password_hash FROM admin WHERE id = $1', [req.adminId]);
-        const validPassword = await bcrypt.compare(password, admin.rows[0].password_hash);
-        if (!validPassword) {
-            return res.status(401).json({ error: 'Invalid password' });
-        }
-        
-        // Check for duplicate transaction
-        if (transaction_id) {
-            const existing = await pool.query('SELECT id FROM payments WHERE transaction_id = $1', [transaction_id]);
-            if (existing.rows.length > 0) {
-                return res.status(400).json({ error: 'Transaction ID already exists' });
-            }
-        }
-        
-        // Clean and parse the amount
-        let cleanAmount = amount;
-        if (typeof cleanAmount === 'string') {
-            // Remove commas and non-numeric characters except decimal point
-            cleanAmount = cleanAmount.replace(/,/g, '').replace(/[^0-9.]/g, '');
-            // If there are multiple decimal points, keep only the first one
-            const parts = cleanAmount.split('.');
-            if (parts.length > 2) {
-                cleanAmount = parts[0] + '.' + parts.slice(1).join('');
-            }
-        }
-        const numericAmount = parseFloat(cleanAmount);
-        
-        if (isNaN(numericAmount) || numericAmount <= 0) {
-            return res.status(400).json({ error: 'Invalid amount: ' + amount });
-        }
-        
-        console.log('✅ Cleaned amount:', numericAmount);
-        
-        // Insert payment
-        const result = await pool.query(
-            `INSERT INTO payments (tenant_id, amount, payment_date, payment_type, transaction_id, notes, source)
-             VALUES ($1, $2, $3, $4, $5, $6, 'manual') RETURNING *`,
-            [tenant_id, numericAmount, payment_date || new Date(), payment_type || 'rent', transaction_id, notes]
-        );
-        
-        const payment = result.rows[0];
-        console.log('✅ Payment recorded:', payment.id);
-        
-        // Apply payment to bills
-        console.log('🔄 Calling applyPaymentToBills for tenant:', tenant_id, 'Amount:', numericAmount);
-        await applyPaymentToBills(tenant_id, numericAmount);
-        console.log('✅ applyPaymentToBills completed for tenant:', tenant_id);
-        
-        res.json(payment);
-    } catch (error) {
-        console.error('POST /payments error:', error);
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// ========== UPDATE PAYMENT ==========
-router.put('/:id', auth, async (req, res) => {
-    const { amount, payment_date, payment_type, transaction_id, notes, password, edit_reason } = req.body;
-    
-    try {
-        // Verify admin password
-        const admin = await pool.query('SELECT password_hash FROM admin WHERE id = $1', [req.adminId]);
-        const validPassword = await bcrypt.compare(password, admin.rows[0].password_hash);
-        if (!validPassword) return res.status(401).json({ error: 'Invalid password' });
-        
-        const currentPayment = await pool.query('SELECT payment_type, tenant_id, amount FROM payments WHERE id = $1', [req.params.id]);
-        if (currentPayment.rows.length === 0) return res.status(404).json({ error: 'Payment not found' });
-        
-        // Only deposit and penalty can be edited
-        if (currentPayment.rows[0].payment_type === 'rent') {
-            return res.status(403).json({ error: 'Rent payments cannot be edited' });
-        }
-        
-        // Clean amount
-        let cleanAmount = amount;
-        if (typeof cleanAmount === 'string') {
-            cleanAmount = cleanAmount.replace(/,/g, '').replace(/[^0-9.]/g, '');
-            const parts = cleanAmount.split('.');
-            if (parts.length > 2) {
-                cleanAmount = parts[0] + '.' + parts.slice(1).join('');
-            }
-        }
-        const numericAmount = parseFloat(cleanAmount);
-        
-        if (isNaN(numericAmount) || numericAmount <= 0) {
-            return res.status(400).json({ error: 'Invalid amount' });
-        }
-        
-        const result = await pool.query(
-            `UPDATE payments SET amount = $1, payment_date = $2, payment_type = $3, transaction_id = $4, notes = $5,
-             edited_by = $6, edit_reason = $7, edit_count = edit_count + 1 WHERE id = $8 RETURNING *`,
-            [numericAmount, payment_date, payment_type, transaction_id, notes, req.adminId, edit_reason, req.params.id]
-        );
-        
-        // Recalculate balance
-        await updateTenantBalance(currentPayment.rows[0].tenant_id);
-        res.json(result.rows[0]);
-    } catch (error) {
-        console.error('PUT /payments/:id error:', error);
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// ========== DELETE PAYMENT ==========
-router.delete('/:id', auth, async (req, res) => {
-    const { password } = req.body;
-    
-    try {
-        // Verify admin password
-        const admin = await pool.query('SELECT password_hash FROM admin WHERE id = $1', [req.adminId]);
-        const validPassword = await bcrypt.compare(password, admin.rows[0].password_hash);
-        if (!validPassword) return res.status(401).json({ error: 'Invalid password' });
-        
-        const payment = await pool.query('SELECT tenant_id, amount FROM payments WHERE id = $1', [req.params.id]);
-        if (payment.rows.length === 0) return res.status(404).json({ error: 'Payment not found' });
-        
-        await pool.query('DELETE FROM payments WHERE id = $1', [req.params.id]);
-        await updateTenantBalance(payment.rows[0].tenant_id);
-        res.json({ message: 'Payment deleted successfully' });
-    } catch (error) {
-        console.error('DELETE /payments/:id error:', error);
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// ========== SUMMARY STATS ==========
-router.get('/summary/stats', auth, async (req, res) => {
-    try {
-        const { start_date, end_date, property_id, source } = req.query;
-        
-        let query = `
-            SELECT 
-                COALESCE(SUM(p.amount), 0) as total,
-                COALESCE(SUM(CASE WHEN p.source = 'manual' THEN p.amount ELSE 0 END), 0) as manual_total,
-                COALESCE(SUM(CASE WHEN p.source = 'auto' THEN p.amount ELSE 0 END), 0) as auto_total
-            FROM payments p
-            LEFT JOIN tenants t ON p.tenant_id = t.id
-            WHERE 1=1
-        `;
-        const params = [];
-        let paramIndex = 1;
-        
-        if (start_date) { query += ` AND p.payment_date >= $${paramIndex++}`; params.push(start_date); }
-        if (end_date) { query += ` AND p.payment_date <= $${paramIndex++}`; params.push(end_date); }
-        if (property_id) { query += ` AND t.property_id = $${paramIndex++}`; params.push(property_id); }
-        if (source && source !== 'all') { query += ` AND p.source = $${paramIndex++}`; params.push(source); }
-        
-        const result = await pool.query(query, params);
-        res.json(result.rows[0]);
-    } catch (error) {
-        console.error('GET /payments/summary/stats error:', error);
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// ========== FILTER DATA ==========
-router.get('/filters/data', auth, async (req, res) => {
-    try {
-        const properties = await pool.query('SELECT id, name FROM properties ORDER BY name');
-        const tenants = await pool.query('SELECT id, first_name, last_name FROM tenants WHERE is_deleted = FALSE ORDER BY first_name');
-        res.json({ properties: properties.rows, tenants: tenants.rows });
-    } catch (error) {
-        console.error('GET /payments/filters/data error:', error);
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// ========== HELPER FUNCTIONS ==========
-
-// Apply payment to bills
-async function applyPaymentToBills(tenantId, amount) {
-    console.log('🔄 Applying payment to bills for tenant:', tenantId, 'Amount:', amount);
-    
-    // Ensure amount is a valid number
+// ─── Helper: apply payment to oldest unpaid bills ────────────────────────────
+async function applyPaymentToBills(tenantId, amount, ownerId) {
     const paymentAmount = parseFloat(amount);
-    if (isNaN(paymentAmount) || paymentAmount <= 0) {
-        console.log('❌ Invalid payment amount:', amount);
-        return;
-    }
-    
+    if (isNaN(paymentAmount) || paymentAmount <= 0) return;
+
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
-        
-        // Get all unpaid bills for this tenant, ordered oldest first
         const billsResult = await client.query(
-            `SELECT id, total_bill, total_paid, status 
-             FROM bills 
-             WHERE tenant_id = $1 AND total_bill > total_paid
+            `SELECT id, total_bill, total_paid FROM bills
+             WHERE tenant_id = $1 AND owner_id = $2 AND total_bill > total_paid
              ORDER BY bill_month ASC`,
-            [tenantId]
+            [tenantId, ownerId]
         );
-        
-        console.log(`Found ${billsResult.rows.length} unpaid bills for tenant ${tenantId}`);
-        
-        let remainingAmount = paymentAmount;
-        
+
+        let remaining = paymentAmount;
         for (const bill of billsResult.rows) {
-            if (remainingAmount <= 0) break;
-            
-            const billOwed = parseFloat(bill.total_bill) - parseFloat(bill.total_paid);
-            const paymentToApply = Math.min(remainingAmount, billOwed);
-            
-            if (paymentToApply > 0) {
-                const newTotalPaid = parseFloat(bill.total_paid) + paymentToApply;
-                let newStatus = 'not_paid';
-                
-                if (newTotalPaid >= parseFloat(bill.total_bill)) {
-                    newStatus = 'paid';
-                } else if (newTotalPaid > 0) {
-                    newStatus = 'partially_paid';
-                }
-                
-                // UPDATE THE BILL
-                const updateResult = await client.query(
-                    `UPDATE bills 
-                     SET total_paid = $1, status = $2, updated_at = NOW()
-                     WHERE id = $3
-                     RETURNING *`,
-                    [newTotalPaid, newStatus, bill.id]
+            if (remaining <= 0) break;
+            const owed = parseFloat(bill.total_bill) - parseFloat(bill.total_paid);
+            const apply = Math.min(remaining, owed);
+            if (apply > 0) {
+                const newPaid = parseFloat(bill.total_paid) + apply;
+                const newStatus = newPaid >= parseFloat(bill.total_bill)
+                    ? 'paid' : newPaid > 0 ? 'partially_paid' : 'not_paid';
+                await client.query(
+                    'UPDATE bills SET total_paid = $1, status = $2, updated_at = NOW() WHERE id = $3',
+                    [newPaid, newStatus, bill.id]
                 );
-                
-                console.log(`✅ Bill ${bill.id} updated: total_paid = ${newTotalPaid}, Status: ${newStatus}`);
-                remainingAmount -= paymentToApply;
+                remaining -= apply;
             }
         }
-        
-        // Update tenant balance
-        await updateTenantBalance(tenantId);
-        
+        await updateTenantBalance(tenantId, client);
         await client.query('COMMIT');
-        console.log('✅ Payment application completed successfully');
-        
-        if (remainingAmount > 0) {
-            console.log(`⚠️ Overpayment of KES ${remainingAmount} will be stored as credit`);
-        }
-        
-    } catch (error) {
+    } catch (err) {
         await client.query('ROLLBACK');
-        console.error('❌ Error applying payment:', error);
-        throw error;
+        throw err;
     } finally {
         client.release();
     }
 }
 
-// Update tenant balance
-async function updateTenantBalance(tenantId) {
-    const result = await pool.query(
-        `SELECT COALESCE(SUM(total_bill - total_paid), 0) as balance
-         FROM bills 
-         WHERE tenant_id = $1`,
+// ─── Helper: recalculate tenant balance ──────────────────────────────────────
+async function updateTenantBalance(tenantId, client) {
+    const db = client || pool;
+    const result = await db.query(
+        'SELECT COALESCE(SUM(total_bill - total_paid), 0) AS balance FROM bills WHERE tenant_id = $1',
         [tenantId]
     );
-    
-    const newBalance = parseFloat(result.rows[0].balance) || 0;
-    
-    await pool.query(
-        `UPDATE tenants SET balance = $1 WHERE id = $2`,
-        [newBalance, tenantId]
+    await db.query(
+        'UPDATE tenants SET balance = $1 WHERE id = $2',
+        [parseFloat(result.rows[0].balance) || 0, tenantId]
     );
-    
-    console.log(`✅ Tenant ${tenantId} balance updated to: ${newBalance}`);
-    return newBalance;
 }
+
+// ─── Helper: verify payment belongs to this owner ────────────────────────────
+async function assertPaymentOwnership(paymentId, ownerId) {
+    const r = await pool.query(
+        'SELECT id, tenant_id FROM payments WHERE id = $1 AND owner_id = $2',
+        [paymentId, ownerId]
+    );
+    return r.rows[0] || null;
+}
+
+// GET all payments — scoped to owner
+router.get('/', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT p.*,
+                   t.first_name, t.last_name, t.phone,
+                   r.house_no,
+                   pr.name AS property_name
+            FROM payments p
+            LEFT JOIN tenants t  ON p.tenant_id = t.id
+            LEFT JOIN rooms r    ON t.room_id = r.id
+            LEFT JOIN properties pr ON t.property_id = pr.id
+            WHERE p.owner_id = $1
+            ORDER BY p.payment_date DESC, p.id DESC
+        `, [req.ownerId]);
+        res.json(result.rows);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// GET single payment — ownership enforced
+router.get('/:id', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT p.*,
+                   t.first_name, t.last_name, t.phone,
+                   r.house_no, pr.name AS property_name
+            FROM payments p
+            LEFT JOIN tenants t  ON p.tenant_id = t.id
+            LEFT JOIN rooms r    ON t.room_id = r.id
+            LEFT JOIN properties pr ON t.property_id = pr.id
+            WHERE p.id = $1 AND p.owner_id = $2
+        `, [req.params.id, req.ownerId]);
+        if (result.rows.length === 0) return res.status(404).json({ error: 'Payment not found' });
+        res.json(result.rows[0]);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// GET payments by tenant — ownership enforced
+router.get('/tenant/:tenantId', async (req, res) => {
+    try {
+        const tenantCheck = await pool.query(
+            'SELECT id FROM tenants WHERE id = $1 AND owner_id = $2',
+            [req.params.tenantId, req.ownerId]
+        );
+        if (tenantCheck.rows.length === 0) return res.status(404).json({ error: 'Tenant not found' });
+
+        const result = await pool.query(
+            'SELECT * FROM payments WHERE tenant_id = $1 AND owner_id = $2 ORDER BY payment_date DESC',
+            [req.params.tenantId, req.ownerId]
+        );
+        res.json(result.rows);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// POST create payment — manager+
+router.post('/', async (req, res) => {
+    const { tenant_id, amount, payment_date, payment_type, transaction_id, notes, password } = req.body;
+
+    try {
+        // Verify admin password
+        const admin = await pool.query('SELECT password_hash FROM admin WHERE id = $1', [req.adminId]);
+        if (!admin.rows.length) return res.status(401).json({ error: 'Invalid credentials' });
+        const valid = await bcrypt.compare(password, admin.rows[0].password_hash);
+        if (!valid) return res.status(401).json({ error: 'Invalid password' });
+
+        // Verify tenant belongs to this owner
+        const tenantCheck = await pool.query(
+            'SELECT id FROM tenants WHERE id = $1 AND owner_id = $2',
+            [tenant_id, req.ownerId]
+        );
+        if (tenantCheck.rows.length === 0) return res.status(403).json({ error: 'Tenant not found' });
+
+        // Check duplicate transaction
+        if (transaction_id) {
+            const dup = await pool.query(
+                'SELECT id FROM payments WHERE transaction_id = $1',
+                [transaction_id]
+            );
+            if (dup.rows.length > 0) return res.status(400).json({ error: 'Transaction ID already exists' });
+        }
+
+        const numericAmount = parseAmount(amount);
+        if (isNaN(numericAmount) || numericAmount <= 0) {
+            return res.status(400).json({ error: 'Invalid amount: ' + amount });
+        }
+
+        const result = await pool.query(
+            `INSERT INTO payments
+                (tenant_id, amount, payment_date, payment_type, transaction_id, notes, source, owner_id)
+             VALUES ($1,$2,$3,$4,$5,$6,'manual',$7) RETURNING *`,
+            [tenant_id, numericAmount, payment_date || new Date(),
+             payment_type || 'rent', transaction_id, notes, req.ownerId]
+        );
+
+        await applyPaymentToBills(tenant_id, numericAmount, req.ownerId);
+        res.json(result.rows[0]);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// PUT update payment — manager+ (only deposit/penalty types)
+router.put('/:id', async (req, res) => {
+    const { amount, payment_date, payment_type, transaction_id, notes, password, edit_reason } = req.body;
+
+    try {
+        const admin = await pool.query('SELECT password_hash FROM admin WHERE id = $1', [req.adminId]);
+        const valid = await bcrypt.compare(password, admin.rows[0].password_hash);
+        if (!valid) return res.status(401).json({ error: 'Invalid password' });
+
+        const payment = await assertPaymentOwnership(req.params.id, req.ownerId);
+        if (!payment) return res.status(404).json({ error: 'Payment not found' });
+
+        const current = await pool.query(
+            'SELECT payment_type, tenant_id FROM payments WHERE id = $1',
+            [req.params.id]
+        );
+        if (current.rows[0].payment_type === 'rent') {
+            return res.status(403).json({ error: 'Rent payments cannot be edited' });
+        }
+
+        const numericAmount = parseAmount(amount);
+        if (isNaN(numericAmount) || numericAmount <= 0) {
+            return res.status(400).json({ error: 'Invalid amount' });
+        }
+
+        const result = await pool.query(
+            `UPDATE payments
+             SET amount = $1, payment_date = $2, payment_type = $3, transaction_id = $4,
+                 notes = $5, edited_by = $6, edit_reason = $7, edit_count = edit_count + 1
+             WHERE id = $8 AND owner_id = $9 RETURNING *`,
+            [numericAmount, payment_date, payment_type, transaction_id, notes,
+             req.adminId, edit_reason, req.params.id, req.ownerId]
+        );
+
+        await updateTenantBalance(current.rows[0].tenant_id);
+        res.json(result.rows[0]);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// DELETE payment — owner only
+router.delete('/:id', requireOwner, async (req, res) => {
+    const { password } = req.body;
+
+    try {
+        const admin = await pool.query('SELECT password_hash FROM admin WHERE id = $1', [req.adminId]);
+        const valid = await bcrypt.compare(password, admin.rows[0].password_hash);
+        if (!valid) return res.status(401).json({ error: 'Invalid password' });
+
+        const payment = await assertPaymentOwnership(req.params.id, req.ownerId);
+        if (!payment) return res.status(404).json({ error: 'Payment not found' });
+
+        await pool.query('DELETE FROM payments WHERE id = $1', [req.params.id]);
+        await updateTenantBalance(payment.tenant_id);
+        res.json({ message: 'Payment deleted successfully' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// GET summary stats — scoped to owner
+router.get('/summary/stats', async (req, res) => {
+    try {
+        const { start_date, end_date, property_id, source } = req.query;
+        let query = `
+            SELECT
+                COALESCE(SUM(p.amount), 0) AS total,
+                COALESCE(SUM(CASE WHEN p.source = 'manual' THEN p.amount ELSE 0 END), 0) AS manual_total,
+                COALESCE(SUM(CASE WHEN p.source = 'auto'   THEN p.amount ELSE 0 END), 0) AS auto_total
+            FROM payments p
+            LEFT JOIN tenants t ON p.tenant_id = t.id
+            WHERE p.owner_id = $1
+        `;
+        const params = [req.ownerId];
+        let i = 2;
+
+        if (start_date)                 { query += ` AND p.payment_date >= $${i++}`; params.push(start_date); }
+        if (end_date)                   { query += ` AND p.payment_date <= $${i++}`; params.push(end_date); }
+        if (property_id)                { query += ` AND t.property_id = $${i++}`;   params.push(property_id); }
+        if (source && source !== 'all') { query += ` AND p.source = $${i++}`;        params.push(source); }
+
+        const result = await pool.query(query, params);
+        res.json(result.rows[0]);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// GET filter data — scoped to owner
+router.get('/filters/data', async (req, res) => {
+    try {
+        const properties = await pool.query(
+            'SELECT id, name FROM properties WHERE owner_id = $1 ORDER BY name',
+            [req.ownerId]
+        );
+        const tenants = await pool.query(
+            'SELECT id, first_name, last_name FROM tenants WHERE owner_id = $1 AND is_deleted = FALSE ORDER BY first_name',
+            [req.ownerId]
+        );
+        res.json({ properties: properties.rows, tenants: tenants.rows });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    }
+});
 
 module.exports = router;
