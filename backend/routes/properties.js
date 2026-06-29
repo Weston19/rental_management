@@ -5,6 +5,16 @@ const redis = require('../redis');
 
 const router = express.Router();
 
+// Helper to update property counts
+async function updatePropertyCounts(propertyId) {
+    await pool.query(`
+        UPDATE properties 
+        SET total_rooms = (SELECT COUNT(*) FROM rooms WHERE property_id = $1),
+            occupied_rooms = (SELECT COUNT(*) FROM rooms WHERE property_id = $1 AND status = 'occupied')
+        WHERE id = $1
+    `, [propertyId]);
+}
+
 // Get all properties
 router.get('/', auth, async (req, res) => {
     const cacheKey = 'all_properties';
@@ -88,13 +98,13 @@ router.get('/:id', auth, async (req, res) => {
 
 // Add property
 router.post('/', auth, async (req, res) => {
-    const { name, location, landlord_name, total_rooms, occupied_rooms, billing_day, penalty_amount, image_url } = req.body;
+    const { name, location, landlord_name, billing_day, penalty_amount, image_url } = req.body;
     
     try {
         const result = await pool.query(
             `INSERT INTO properties (name, location, landlord_name, total_rooms, occupied_rooms, billing_day, penalty_amount, image_url) 
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-            [name, location, landlord_name, total_rooms || 0, occupied_rooms || 0, billing_day || 1, penalty_amount || 0, image_url]
+             VALUES ($1, $2, $3, 0, 0, $4, $5, $6) RETURNING *`,
+            [name, location, landlord_name, billing_day || 1, penalty_amount || 0, image_url]
         );
         
         // Invalidate cache
@@ -109,16 +119,15 @@ router.post('/', auth, async (req, res) => {
 
 // Update property
 router.put('/:id', auth, async (req, res) => {
-    const { name, location, landlord_name, total_rooms, occupied_rooms, billing_day, penalty_amount, image_url } = req.body;
+    const { name, location, landlord_name, billing_day, penalty_amount, image_url } = req.body;
     
     try {
         const result = await pool.query(
             `UPDATE properties SET 
                 name = $1, location = $2, landlord_name = $3, 
-                total_rooms = $4, occupied_rooms = $5, 
-                billing_day = $6, penalty_amount = $7, image_url = $8 
-             WHERE id = $9 RETURNING *`,
-            [name, location, landlord_name, total_rooms, occupied_rooms, billing_day, penalty_amount, image_url, req.params.id]
+                billing_day = $4, penalty_amount = $5, image_url = $6 
+             WHERE id = $7 RETURNING *`,
+            [name, location, landlord_name, billing_day, penalty_amount, image_url, req.params.id]
         );
         
         if (result.rows.length === 0) {
@@ -204,18 +213,18 @@ router.post('/:propertyId/rooms', auth, async (req, res) => {
             return res.status(400).json({ error: 'House number already exists' });
         }
         
-        const property = await pool.query('SELECT total_rooms FROM properties WHERE id = $1', [propertyId]);
-        const currentRooms = await pool.query('SELECT COUNT(*) FROM rooms WHERE property_id = $1', [propertyId]);
-        
-        if (parseInt(currentRooms.rows[0].count) >= parseInt(property.rows[0].total_rooms)) {
-            return res.status(400).json({ error: `Maximum ${property.rows[0].total_rooms} rooms reached` });
-        }
-        
         const result = await pool.query(
             `INSERT INTO rooms (property_id, house_no, room_type, status, deposit, rent, floor_number, image_url) 
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
             [propertyId, house_no.trim(), room_type, status || 'vacant', deposit, rent, floor_number || 0, image_url]
         );
+        
+        // Update property counts
+        await updatePropertyCounts(propertyId);
+        
+        // Invalidate cache
+        await redis.del('all_properties');
+        await redis.del(`property:${propertyId}`);
         
         res.json(result.rows[0]);
     } catch (error) {
@@ -283,6 +292,13 @@ router.put('/room/:roomId', auth, async (req, res) => {
             [house_no.trim(), room_type, status, deposit, rent, floor_number || 0, image_url, roomId]
         );
         
+        // Update property counts
+        await updatePropertyCounts(currentRoom.rows[0].property_id);
+        
+        // Invalidate cache
+        await redis.del('all_properties');
+        await redis.del(`property:${currentRoom.rows[0].property_id}`);
+        
         res.json(result.rows[0]);
     } catch (error) {
         console.error(error);
@@ -309,8 +325,12 @@ router.delete('/room/:roomId', auth, async (req, res) => {
         // Delete the room
         await pool.query('DELETE FROM rooms WHERE id = $1', [req.params.roomId]);
         
-        // Update property total_rooms count
-        await pool.query('UPDATE properties SET total_rooms = total_rooms - 1 WHERE id = $1', [room.rows[0].property_id]);
+        // Update property counts
+        await updatePropertyCounts(room.rows[0].property_id);
+        
+        // Invalidate cache
+        await redis.del('all_properties');
+        await redis.del(`property:${room.rows[0].property_id}`);
         
         res.json({ message: 'Room deleted successfully' });
     } catch (error) {

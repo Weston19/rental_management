@@ -1,8 +1,19 @@
 const express = require('express');
 const pool = require('../db');
 const auth = require('../middleware/auth');
+const redis = require('../redis');
 
 const router = express.Router();
+
+// Helper to update property counts
+async function updatePropertyCounts(propertyId) {
+    await pool.query(`
+        UPDATE properties 
+        SET total_rooms = (SELECT COUNT(*) FROM rooms WHERE property_id = $1),
+            occupied_rooms = (SELECT COUNT(*) FROM rooms WHERE property_id = $1 AND status = 'occupied')
+        WHERE id = $1
+    `, [propertyId]);
+}
 
 // Get all tenants (including vacated)
 router.get('/all', auth, async (req, res) => {
@@ -133,8 +144,10 @@ router.post('/', auth, async (req, res) => {
         // Update room status to occupied
         await pool.query('UPDATE rooms SET status = $1 WHERE id = $2', ['occupied', room_id]);
         
-        // Update property occupied_rooms count
-        await pool.query('UPDATE properties SET occupied_rooms = occupied_rooms + 1 WHERE id = $1', [property_id]);
+        // Update property counts and invalidate cache
+        await updatePropertyCounts(property_id);
+        await redis.del('all_properties');
+        await redis.del(`property:${property_id}`);
         
         res.json(result.rows[0]);
     } catch (error) {
@@ -196,8 +209,19 @@ router.put('/:id', auth, async (req, res) => {
         if (oldTenant.rows[0].room_id !== room_id) {
             await pool.query('UPDATE rooms SET status = $1 WHERE id = $2', ['vacant', oldTenant.rows[0].room_id]);
             await pool.query('UPDATE rooms SET status = $1 WHERE id = $2', ['occupied', room_id]);
-            await pool.query('UPDATE properties SET occupied_rooms = occupied_rooms - 1 WHERE id = $1', [oldTenant.rows[0].property_id]);
-            await pool.query('UPDATE properties SET occupied_rooms = occupied_rooms + 1 WHERE id = $1', [property_id]);
+            
+            // Update counts for both old and new properties
+            await updatePropertyCounts(oldTenant.rows[0].property_id);
+            await updatePropertyCounts(property_id);
+            
+            // Invalidate cache for both properties
+            await redis.del('all_properties');
+            await redis.del(`property:${oldTenant.rows[0].property_id}`);
+            await redis.del(`property:${property_id}`);
+        } else {
+            // Even if room didn't change, invalidate cache in case other fields updated
+            await redis.del('all_properties');
+            await redis.del(`property:${property_id}`);
         }
         
         res.json(result.rows[0]);
@@ -215,7 +239,11 @@ router.delete('/:id', auth, async (req, res) => {
         if (tenant.rows.length > 0) {
             await pool.query('UPDATE tenants SET is_deleted = TRUE WHERE id = $1', [req.params.id]);
             await pool.query('UPDATE rooms SET status = $1 WHERE id = $2', ['vacant', tenant.rows[0].room_id]);
-            await pool.query('UPDATE properties SET occupied_rooms = occupied_rooms - 1 WHERE id = $1', [tenant.rows[0].property_id]);
+            
+            // Update property counts and invalidate cache
+            await updatePropertyCounts(tenant.rows[0].property_id);
+            await redis.del('all_properties');
+            await redis.del(`property:${tenant.rows[0].property_id}`);
         }
         
         res.json({ message: 'Tenant vacated successfully' });
