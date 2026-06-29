@@ -2,6 +2,8 @@ const express = require('express');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const pool = require('../db');
+const tenantAuth = require('../middleware/tenant-auth');
+const redis = require('../redis');
 const router = express.Router();
 
 // ========== TENANT AUTH ==========
@@ -62,8 +64,6 @@ router.post('/signup', async (req, res) => {
 router.post('/login', async (req, res) => {
     const { phone, password } = req.body;
     
-    console.log('📡 Login attempt:', { phone, password: '****' });
-    
     try {
         // Find tenant by phone number
         const result = await pool.query(`
@@ -74,14 +74,11 @@ router.post('/login', async (req, res) => {
             WHERE t.phone = $1 AND t.is_deleted = FALSE
         `, [phone]);
         
-        console.log('🔍 Tenant found:', result.rows.length > 0 ? '✅' : '❌');
-        
         if (result.rows.length === 0) {
             return res.status(401).json({ error: 'Invalid phone number' });
         }
         
         const tenant = result.rows[0];
-        console.log('👤 Tenant:', tenant.first_name, tenant.last_name);
         
         // Check if password exists
         if (!tenant.password_hash) {
@@ -90,7 +87,6 @@ router.post('/login', async (req, res) => {
         
         // Check password
         const validPassword = await bcrypt.compare(password, tenant.password_hash);
-        console.log('🔐 Password valid:', validPassword ? '✅' : '❌');
         
         if (!validPassword) {
             return res.status(401).json({ error: 'Invalid password' });
@@ -156,7 +152,7 @@ router.post('/login', async (req, res) => {
 
 // ========== TENANT DASHBOARD ==========
 
-router.get('/dashboard/:tenantId', async (req, res) => {
+router.get('/dashboard/:tenantId', tenantAuth, async (req, res) => {
     const { tenantId } = req.params;
     
     try {
@@ -221,7 +217,7 @@ router.get('/dashboard/:tenantId', async (req, res) => {
 // ========== TENANT PAYMENTS ==========
 
 // Get all invoices
-router.get('/invoices/:tenantId', async (req, res) => {
+router.get('/invoices/:tenantId', tenantAuth, async (req, res) => {
     const { tenantId } = req.params;
     
     try {
@@ -241,7 +237,7 @@ router.get('/invoices/:tenantId', async (req, res) => {
 });
 
 // Get payment history
-router.get('/payments/:tenantId', async (req, res) => {
+router.get('/payments/:tenantId', tenantAuth, async (req, res) => {
     const { tenantId } = req.params;
     
     try {
@@ -260,9 +256,10 @@ router.get('/payments/:tenantId', async (req, res) => {
 // ========== TENANT PROFILE ==========
 
 // Change password
-router.put('/change-password/:tenantId', async (req, res) => {
+router.put('/change-password/:tenantId', tenantAuth, async (req, res) => {
     const { tenantId } = req.params;
     const { current_password, new_password } = req.body;
+    const token = req.header('Authorization')?.replace('Bearer ', '');
     
     try {
         const tenant = await pool.query('SELECT password_hash FROM tenants WHERE id = $1', [tenantId]);
@@ -280,6 +277,11 @@ router.put('/change-password/:tenantId', async (req, res) => {
             'UPDATE tenants SET password_hash = $1 WHERE id = $2',
             [hashedPassword, tenantId]
         );
+
+        // Blacklist old token
+        if (token) {
+            await redis.setex(`blacklist:${token}`, 604800, 'true'); // 7 days
+        }
         
         res.json({ message: 'Password updated successfully' });
     } catch (error) {
@@ -288,8 +290,25 @@ router.put('/change-password/:tenantId', async (req, res) => {
     }
 });
 
+// Tenant Logout
+router.post('/logout', tenantAuth, async (req, res) => {
+    const token = req.header('Authorization')?.replace('Bearer ', '');
+    
+    try {
+        if (token) {
+            // Blacklist token for 7 days (tenant token expiration)
+            await redis.setex(`blacklist:${token}`, 604800, 'true');
+        }
+        
+        res.json({ message: 'Logged out successfully' });
+    } catch (error) {
+        console.error('Logout error:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 // Update phone number
-router.put('/update-phone/:tenantId', async (req, res) => {
+router.put('/update-phone/:tenantId', tenantAuth, async (req, res) => {
     const { tenantId } = req.params;
     const { phone } = req.body;
     
@@ -307,7 +326,7 @@ router.put('/update-phone/:tenantId', async (req, res) => {
 
 // ========== INITIATE M-PESA PAYMENT ==========
 
-router.post('/pay', async (req, res) => {
+router.post('/pay', tenantAuth, async (req, res) => {
     const { tenant_id, amount, payment_type, phone_number } = req.body;
     
     try {

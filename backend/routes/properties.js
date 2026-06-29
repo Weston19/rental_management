@@ -155,7 +155,7 @@ router.delete('/:id', auth, async (req, res) => {
         res.json({ message: 'Property deleted successfully' });
     } catch (error) {
         console.error(error);
-        res.status(500).json({ error: 'Server error: ' + error.message });
+        res.status(500).json({ error: 'Server error' });
     }
 });
 // Get rooms by property
@@ -292,8 +292,6 @@ router.put('/room/:roomId', auth, async (req, res) => {
 
 // Delete room
 router.delete('/room/:roomId', auth, async (req, res) => {
-    console.log('🗑️ Delete room called for ID:', req.params.roomId);
-    
     try {
         // Get room info
         const room = await pool.query('SELECT property_id FROM rooms WHERE id = $1', [req.params.roomId]);
@@ -314,11 +312,10 @@ router.delete('/room/:roomId', auth, async (req, res) => {
         // Update property total_rooms count
         await pool.query('UPDATE properties SET total_rooms = total_rooms - 1 WHERE id = $1', [room.rows[0].property_id]);
         
-        console.log('✅ Room deleted successfully');
         res.json({ message: 'Room deleted successfully' });
     } catch (error) {
-        console.error('❌ Delete room error:', error);
-        res.status(500).json({ error: 'Server error: ' + error.message });
+        console.error(error);
+        res.status(500).json({ error: 'Server error' });
     }
 });
 
