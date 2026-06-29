@@ -5,9 +5,44 @@ const bcrypt = require('bcrypt');
 
 const router = express.Router();
 
+// Get current admin/company info
+router.get('/admin', auth, async (req, res) => {
+    try {
+        const result = await pool.query('SELECT id, email, company_name, created_at FROM admin WHERE id = $1', [req.adminId]);
+        if (result.rows.length === 0) return res.status(404).json({ error: 'Admin not found' });
+        res.json(result.rows[0]);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Update company name
+router.put('/update-company', auth, async (req, res) => {
+    const { company_name } = req.body;
+    
+    if (!company_name || company_name.trim() === '') {
+        return res.status(400).json({ error: 'Company name is required' });
+    }
+    
+    try {
+        const result = await pool.query(
+            'UPDATE admin SET company_name = $1 WHERE id = $2 RETURNING id, email, company_name',
+            [company_name.trim(), req.adminId]
+        );
+        
+        if (result.rows.length === 0) return res.status(404).json({ error: 'Admin not found' });
+        
+        res.json(result.rows[0]);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 // SMS TEMPLATES 
 
-// Get all templates created by the adminnpm 
+// Get all templates created by the admin 
 router.get('/templates', auth, async (req, res) => {
     try {
         const result = await pool.query('SELECT * FROM sms_templates ORDER BY name');

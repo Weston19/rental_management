@@ -4,6 +4,8 @@ const path = require('path');
 require('dotenv').config();
 
 const redis = require('./redis');
+const upload = require('./upload');
+const auth = require('./middleware/auth');
 
 // Import routes
 const authRoutes = require('./routes/auth');
@@ -29,6 +31,15 @@ app.use(express.urlencoded({ extended: true }));
 
 // Serve static files
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Upload endpoint
+app.post('/api/upload/:type', auth, upload.single('image'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No file uploaded' });
+  }
+  // Return the URL to access the uploaded file
+  res.json({ imageUrl: `/uploads/${req.file.filename}` });
+});
 
 // API Routes (available from both root and /admin)
 app.use('/api/auth', authRoutes);
@@ -64,6 +75,15 @@ adminRouter.use(cors());
 adminRouter.use(express.json());
 adminRouter.use(express.urlencoded({ extended: true }));
 adminRouter.use(express.static(path.join(__dirname, 'public')));
+
+// Upload endpoint on admin
+adminRouter.post('/api/upload/:type', auth, upload.single('image'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No file uploaded' });
+  }
+  // Return the URL to access the uploaded file
+  res.json({ imageUrl: `/uploads/${req.file.filename}` });
+});
 
 // API Routes on /admin
 adminRouter.use('/api/auth', authRoutes);

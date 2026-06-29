@@ -16,6 +16,10 @@
       "dest": "backend/server-admin.js"
     },
     {
+      "src": "^/(api/.*|uploads/.*)",
+      "dest": "backend/server-admin.js"
+    },
+    {
       "src": "/(.*)",
       "dest": "backend/server-tenant.js",
       "has": [
@@ -44,10 +48,6 @@
           "value": "primmeholdings.co.ke"
         }
       ]
-    },
-    {
-      "src": "^/(api/.*|uploads/.*)",
-      "dest": "backend/server-admin.js"
     },
     {
       "src": "/(.*)",
