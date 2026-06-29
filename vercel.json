@@ -16,6 +16,14 @@
       "dest": "backend/server-admin.js"
     },
     {
+      "src": "/api/tenant-portal(.*)",
+      "dest": "backend/server-tenant.js"
+    },
+    {
+      "src": "/api/mpesa(.*)",
+      "dest": "backend/server-tenant.js"
+    },
+    {
       "src": "/(.*)",
       "dest": "backend/server-admin.js",
       "has": [
