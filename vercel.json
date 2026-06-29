@@ -36,6 +36,36 @@
       ]
     },
     {
+      "src": "/(.*)",
+      "dest": "backend/server-admin.js",
+      "has": [
+        {
+          "type": "host",
+          "value": "rental-management-system.site.je"
+        }
+      ]
+    },
+    {
+      "src": "/(.*)",
+      "dest": "backend/server-admin.js",
+      "has": [
+        {
+          "type": "host",
+          "value": "admin.rental-management-system.site.je"
+        }
+      ]
+    },
+    {
+      "src": "/(.*)",
+      "dest": "backend/server-tenant.js",
+      "has": [
+        {
+          "type": "host",
+          "value": "rental-management-jet.vercel.app"
+        }
+      ]
+    },
+    {
       "src": "^/(api/.*|uploads/.*)",
       "dest": "backend/server-admin.js"
     },
@@ -46,6 +76,6 @@
   ],
   "env": {
     "NODE_ENV": "production",
-    "BASE_URL": "https://rental-management-jet.vercel.app/admin"
+    "BASE_URL": "https://rental-management-system.site.je"
   }
 }
