@@ -1,4 +1,4 @@
-const redis = require('../redis');
+const redis = require('../utils/redis');
 
 // Rate limit for login attempts: max 5 attempts per 15 minutes
 const loginRateLimiter = async (req, res, next) => {
