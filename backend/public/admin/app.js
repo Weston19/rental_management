@@ -1509,17 +1509,42 @@ async function renderPaymentSetup() {
             <div style="max-width: 600px;">
                 <h3>Payment Setup</h3>
                 ${paymentSetup?.payment_configured ? 
-                    `<div style="background:#d4edda; color:#155724; padding:15px; border-radius:8px; margin-bottom:20px;">
-                        <strong>✅ Payment Configured!</strong><br>
-                        Currency: ${escapeHtml(paymentSetup.currency)}<br>
-                        Type: ${escapeHtml(paymentSetup.payment_type)}<br>
-                        Provider: ${escapeHtml(paymentSetup.provider_name)}<br>
-                        Account: ${escapeHtml(paymentSetup.account_name)}<br>
-                        Account Number: ${escapeHtml(paymentSetup.account_number)}
+                    `<div style="background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%); color: #155724; padding:20px; border-radius:12px; margin-bottom:20px; box-shadow: 0 2px 8px rgba(21, 87, 36, 0.1); border:1px solid #b1dfbb;">
+                        <div style="display:flex; align-items:center; gap:10px; margin-bottom:15px;">
+                            <span style="font-size:24px;">✅</span>
+                            <h4 style="margin:0; color:#155724;">Payment Configured</h4>
+                        </div>
+                        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px,1fr)); gap:12px;">
+                            <div style="background:rgba(255,255,255,0.5); padding:10px; border-radius:8px;">
+                                <small style="color:#407849; font-weight:600; text-transform:uppercase; font-size:11px; letter-spacing:0.5px;">Currency</small>
+                                <p style="margin:5px 0 0 0; font-size:16px; font-weight:600;">${escapeHtml(paymentSetup.currency)}</p>
+                            </div>
+                            <div style="background:rgba(255,255,255,0.5); padding:10px; border-radius:8px;">
+                                <small style="color:#407849; font-weight:600; text-transform:uppercase; font-size:11px; letter-spacing:0.5px;">Type</small>
+                                <p style="margin:5px 0 0 0; font-size:16px; font-weight:600;">${escapeHtml(paymentSetup.payment_type)}</p>
+                            </div>
+                            <div style="background:rgba(255,255,255,0.5); padding:10px; border-radius:8px;">
+                                <small style="color:#407849; font-weight:600; text-transform:uppercase; font-size:11px; letter-spacing:0.5px;">Provider</small>
+                                <p style="margin:5px 0 0 0; font-size:16px; font-weight:600;">${escapeHtml(paymentSetup.provider_name)}</p>
+                            </div>
+                            <div style="background:rgba(255,255,255,0.5); padding:10px; border-radius:8px;">
+                                <small style="color:#407849; font-weight:600; text-transform:uppercase; font-size:11px; letter-spacing:0.5px;">Account Name</small>
+                                <p style="margin:5px 0 0 0; font-size:16px; font-weight:600;">${escapeHtml(paymentSetup.account_name)}</p>
+                            </div>
+                            <div style="background:rgba(255,255,255,0.5); padding:10px; border-radius:8px; grid-column:1/-1;">
+                                <small style="color:#407849; font-weight:600; text-transform:uppercase; font-size:11px; letter-spacing:0.5px;">Account Number</small>
+                                <p style="margin:5px 0 0 0; font-size:16px; font-weight:600;">${escapeHtml(paymentSetup.account_number)}</p>
+                            </div>
+                        </div>
                     </div>` : 
-                    `<div style="background:#fff3cd; color:#856404; padding:15px; border-radius:8px; margin-bottom:20px;">
-                        <strong>⚠️ Payment Not Configured</strong><br>
-                        Please set up your payment account to receive payments.
+                    `<div style="background: linear-gradient(135deg, #fff3cd 0%, #ffeeba 100%); color:#856404; padding:20px; border-radius:12px; margin-bottom:20px; box-shadow:0 2px 8px rgba(133,100,4,0.1); border:1px solid #ffeaa7;">
+                        <div style="display:flex; align-items:center; gap:10px;">
+                            <span style="font-size:24px;">⚠️</span>
+                            <div>
+                                <h4 style="margin:0; color:#856404;">Payment Not Configured</h4>
+                                <p style="margin:5px 0 0 0; font-size:14px;">Please set up your payment account to receive payments.</p>
+                            </div>
+                        </div>
                     </div>`
                 }
                 <div style="background:white; border:1px solid #e0e0e0; border-radius:8px; padding:20px;">
