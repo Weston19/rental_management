@@ -530,21 +530,33 @@ async function renderDashboard() {
     }, 200);
     
     // ========== ATTACH EVENT LISTENERS ==========
-    document.getElementById('arrearsCard').onclick = () => {
-        showArrearsModal(arrearsList);
-    };
+    const arrearsCard = document.getElementById('arrearsCard');
+    if (arrearsCard) {
+        arrearsCard.onclick = () => {
+            showArrearsModal(arrearsList);
+        };
+    }
     
-    document.getElementById('advanceCard').onclick = () => {
-        showAdvanceModal(advanceList);
-    };
+    const advanceCard = document.getElementById('advanceCard');
+    if (advanceCard) {
+        advanceCard.onclick = () => {
+            showAdvanceModal(advanceList);
+        };
+    }
     
-    document.getElementById('paymentsCard').onclick = () => {
-        showInvoiceBreakdownModal(propertyInvoiceData);
-    };
+    const paymentsCard = document.getElementById('paymentsCard');
+    if (paymentsCard) {
+        paymentsCard.onclick = () => {
+            showInvoiceBreakdownModal(propertyInvoiceData);
+        };
+    }
     
-    document.getElementById('occupancyCard').onclick = () => {
-        showOccupancyBreakdownModal(propertyOccupancyData);
-    };
+    const occupancyCard = document.getElementById('occupancyCard');
+    if (occupancyCard) {
+        occupancyCard.onclick = () => {
+            showOccupancyBreakdownModal(propertyOccupancyData);
+        };
+    }
 }
 
 // ========== PIE CHART HELPER ==========

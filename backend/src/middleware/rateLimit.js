@@ -1,6 +1,6 @@
 const redis = require('../utils/redis');
 
-// Rate limit for login attempts: max 5 attempts per 15 minutes
+// Rate limit for login attempts: max 10 attempts per 15 minutes
 const loginRateLimiter = async (req, res, next) => {
   const { email, phone } = req.body;
   const key = email ? `login_attempts:${email}` : `login_attempts:${phone}`;
@@ -10,8 +10,8 @@ const loginRateLimiter = async (req, res, next) => {
     const attempts = await redis.get(key);
     const currentAttempts = attempts ? parseInt(attempts) : 0;
 
-    // If 5 or more attempts, block
-    if (currentAttempts >= 5) {
+    // If 10 or more attempts, block
+    if (currentAttempts >= 10) {
       return res.status(429).json({ error: 'Too many login attempts. Please try again in 15 minutes.' });
     }
 
