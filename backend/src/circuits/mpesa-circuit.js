@@ -1,6 +1,6 @@
 const CircuitBreaker = require('opossum');
 const axios = require('axios');
-const pool = require('../db');
+const pool = require('../utils/db');
 
 // ========== M-PESA CONFIGURATION ==========
 const CONSUMER_KEY = process.env.MPESA_CONSUMER_KEY;
