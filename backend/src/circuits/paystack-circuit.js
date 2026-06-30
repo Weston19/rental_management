@@ -72,6 +72,16 @@ async function initializeTransaction(email, amount, reference, subaccountCode, b
     });
 }
 
+// ========== UPDATE SUBACCOUNT ==========
+async function updateSubaccount(subaccountCode, businessName, settlementBank, accountNumber, percentageCharge = 100) {
+    return await makePaystackRequest('PUT', `/subaccount/${subaccountCode}`, {
+        business_name: businessName,
+        settlement_bank: settlementBank,
+        account_number: accountNumber,
+        percentage_charge: percentageCharge
+    });
+}
+
 // ========== VERIFY TRANSACTION ==========
 async function verifyTransaction(reference) {
     return await makePaystackRequest('GET', `/transaction/verify/${reference}`);
@@ -81,6 +91,7 @@ async function verifyTransaction(reference) {
 const resolveBankCircuit = new CircuitBreaker(resolveBankAccount, circuitOptions);
 const listBanksCircuit = new CircuitBreaker(listBanks, circuitOptions);
 const createSubaccountCircuit = new CircuitBreaker(createSubaccount, circuitOptions);
+const updateSubaccountCircuit = new CircuitBreaker(updateSubaccount, circuitOptions);
 const initializeTransactionCircuit = new CircuitBreaker(initializeTransaction, circuitOptions);
 const verifyTransactionCircuit = new CircuitBreaker(verifyTransaction, circuitOptions);
 
@@ -106,6 +117,7 @@ function setupCircuitListeners(circuit, name) {
 setupCircuitListeners(resolveBankCircuit, 'Resolve Bank');
 setupCircuitListeners(listBanksCircuit, 'List Banks');
 setupCircuitListeners(createSubaccountCircuit, 'Create Subaccount');
+setupCircuitListeners(updateSubaccountCircuit, 'Update Subaccount');
 setupCircuitListeners(initializeTransactionCircuit, 'Initialize Transaction');
 setupCircuitListeners(verifyTransactionCircuit, 'Verify Transaction');
 
@@ -114,6 +126,7 @@ module.exports = {
     resolveBankCircuit,
     listBanksCircuit,
     createSubaccountCircuit,
+    updateSubaccountCircuit,
     initializeTransactionCircuit,
     verifyTransactionCircuit,
     
@@ -122,6 +135,7 @@ module.exports = {
         return resolveBankCircuit.opened ||
                listBanksCircuit.opened ||
                createSubaccountCircuit.opened ||
+               updateSubaccountCircuit.opened ||
                initializeTransactionCircuit.opened ||
                verifyTransactionCircuit.opened;
     }
