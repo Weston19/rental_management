@@ -66,9 +66,12 @@ async function initiateCharge(email, amount, reference, phone, channel, subaccou
         payload.bearer = 'subaccount';
     }
 
-    // For mobile money, add phone
+    // For mobile money, add phone and mobile_money object
     if (channel === 'mobile_money' && phone) {
         payload.metadata.phone = phone;
+        payload.mobile_money = {
+            phone: phone
+        };
     }
 
     return await makePaystackRequest('POST', '/charge', payload);
@@ -100,7 +103,8 @@ async function initializeTransaction(email, amount, reference, subaccountCode, b
         reference: reference,
         subaccount: subaccountCode,
         bearer: bearer,
-        metadata: metadata
+        metadata: metadata,
+        channels: ['mobile_money', 'card', 'bank']
     });
 }
 

@@ -382,7 +382,15 @@ router.post('/pay', tenantAuth, validatePayment, async (req, res) => {
         const cryptoRandom = crypto.randomUUID();
         const reference = `rent_${tenant.owner_id}_${tenantId}_${cryptoRandom}`;
         
-        // Use Paystack's transaction initialize for redirect flow
+        // Format phone number for Paystack
+        let formattedPhone = phone_number.replace(/\D/g, '');
+        if (formattedPhone.startsWith('0')) {
+            formattedPhone = '254' + formattedPhone.slice(1);
+        } else if (!formattedPhone.startsWith('254')) {
+            formattedPhone = '254' + formattedPhone;
+        }
+        
+        // Use Paystack's transaction initialize for STK Push
         const result = await initializeTransaction({
             email: email || tenant.email || 'tenant@example.com',
             amount: amount,
@@ -392,14 +400,15 @@ router.post('/pay', tenantAuth, validatePayment, async (req, res) => {
                 tenant_id: tenantId,
                 owner_id: tenant.owner_id,
                 payment_type: payment_type,
-                phone_number: phone_number
+                phone_number: formattedPhone
             }
         });
         
         res.json({
             success: true,
-            message: 'Payment initiated successfully',
+            message: 'STK Push initiated successfully',
             authorization_url: result.data.authorization_url,
+            access_code: result.data.access_code,
             reference: result.data.reference
         });
     } catch (error) {

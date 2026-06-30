@@ -728,7 +728,7 @@
         const result = await response.json();
         
         if (response.ok && result.success) {
-            // Redirect to Paystack's payment page
+            // Redirect to Paystack's payment page for STK Push
             window.location.href = result.authorization_url;
         } else {
             msg.textContent = result.error || 'Payment failed';
