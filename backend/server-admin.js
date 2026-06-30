@@ -2,11 +2,24 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 require('dotenv').config();
+const { createClient } = require('@supabase/supabase-js');
 
 const redis = require('./redis');
 const upload = require('./upload');
 const auth = require('./middleware/auth');
 const runMigrations = require('./migrate');
+
+// Initialize Supabase client for storage
+const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL_SUPABASE_URL || '',
+    process.env.NEXT_PUBLIC_SUPABASE_URL_SUPABASE_ANON_KEY || '',
+    {
+        auth: {
+            autoRefreshToken: false,
+            persistSession: false
+        }
+    }
+);
 
 // ── Migration gate ────────────────────────────────────────────────────────────
 // On Vercel, app.listen never fires, so we run migrations at module load time.
@@ -53,12 +66,40 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Upload endpoint
-app.post('/api/upload/:type', auth, upload.single('image'), (req, res) => {
+app.post('/api/upload/:type', auth, upload.single('image'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No file uploaded' });
   }
-  // Return the URL to access the uploaded file
-  res.json({ imageUrl: `/uploads/${req.file.filename}` });
+  
+  const { type } = req.params;
+  const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+  const fileName = `${type}/${uniqueSuffix}-${req.file.originalname}`;
+  
+  try {
+    // Upload to Supabase Storage
+    const { data, error } = await supabase
+      .storage
+      .from('uploads')
+      .upload(fileName, req.file.buffer, {
+        contentType: req.file.mimetype,
+      });
+      
+    if (error) {
+      console.error('Supabase upload error:', error);
+      return res.status(500).json({ error: 'Failed to upload image' });
+    }
+    
+    // Get public URL
+    const { data: { publicUrl } } = supabase
+      .storage
+      .from('uploads')
+      .getPublicUrl(fileName);
+      
+    res.json({ imageUrl: publicUrl });
+  } catch (err) {
+    console.error('Upload error:', err);
+    res.status(500).json({ error: 'Failed to upload image' });
+  }
 });
 
 // API Routes (available from both root and /admin)
@@ -98,12 +139,40 @@ adminRouter.use(express.urlencoded({ extended: true }));
 adminRouter.use(express.static(path.join(__dirname, 'public')));
 
 // Upload endpoint on admin
-adminRouter.post('/api/upload/:type', auth, upload.single('image'), (req, res) => {
+adminRouter.post('/api/upload/:type', auth, upload.single('image'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No file uploaded' });
   }
-  // Return the URL to access the uploaded file
-  res.json({ imageUrl: `/uploads/${req.file.filename}` });
+  
+  const { type } = req.params;
+  const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+  const fileName = `${type}/${uniqueSuffix}-${req.file.originalname}`;
+  
+  try {
+    // Upload to Supabase Storage
+    const { data, error } = await supabase
+      .storage
+      .from('uploads')
+      .upload(fileName, req.file.buffer, {
+        contentType: req.file.mimetype,
+      });
+      
+    if (error) {
+      console.error('Supabase upload error:', error);
+      return res.status(500).json({ error: 'Failed to upload image' });
+    }
+    
+    // Get public URL
+    const { data: { publicUrl } } = supabase
+      .storage
+      .from('uploads')
+      .getPublicUrl(fileName);
+      
+    res.json({ imageUrl: publicUrl });
+  } catch (err) {
+    console.error('Upload error:', err);
+    res.status(500).json({ error: 'Failed to upload image' });
+  }
 });
 
 // API Routes on /admin
