@@ -130,6 +130,26 @@ module.exports = {
     initializeTransactionCircuit,
     verifyTransactionCircuit,
     
+    // Helper functions for easier usage
+    resolveAccount: async ({ account_number, bank_code }) => {
+        return await resolveBankCircuit.fire(account_number, bank_code);
+    },
+    listBanks: async () => {
+        return await listBanksCircuit.fire();
+    },
+    createSubaccount: async ({ business_name, settlement_bank, account_number, percentage_charge = 0 }) => {
+        return await createSubaccountCircuit.fire(business_name, settlement_bank, account_number, percentage_charge);
+    },
+    updateSubaccount: async ({ subaccount_code, business_name, settlement_bank, account_number, percentage_charge = 0 }) => {
+        return await updateSubaccountCircuit.fire(subaccount_code, business_name, settlement_bank, account_number, percentage_charge);
+    },
+    initializeTransaction: async ({ email, amount, reference, subaccount_code, bearer = 'subaccount', metadata = {} }) => {
+        return await initializeTransactionCircuit.fire(email, amount, reference, subaccount_code, bearer, metadata);
+    },
+    verifyTransaction: async (reference) => {
+        return await verifyTransactionCircuit.fire(reference);
+    },
+    
     // Helper to check circuit state
     isAnyCircuitOpen: () => {
         return resolveBankCircuit.opened ||

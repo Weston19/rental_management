@@ -1378,6 +1378,7 @@ async function renderSettings() {
             <button class="btn-add" id="changePasswordBtn">Change Password</button>
             <button class="btn-add" id="changeCompanyBtn" style="background:#3498db;">Change Company Name</button>
             <button class="btn-add" id="smsTemplatesBtn" style="background:#5cb85c;">SMS Templates</button>
+            <button class="btn-add" id="paymentSetupBtn" style="background:#f39c12;">Payment Setup</button>
         </div>
         <div id="settingsContent"><p>Select an option above to manage settings.</p></div>
     `;
@@ -1385,6 +1386,7 @@ async function renderSettings() {
     document.getElementById('changePasswordBtn').onclick = () => showChangePasswordModal();
     document.getElementById('changeCompanyBtn').onclick = () => showChangeCompanyModal();
     document.getElementById('smsTemplatesBtn').onclick = () => renderSmsTemplates();
+    document.getElementById('paymentSetupBtn').onclick = () => renderPaymentSetup();
 }
 
 // ========== CHANGE PASSWORD ==========
@@ -1493,6 +1495,84 @@ function showChangeCompanyModal() {
     }, 100);
 }
 
+// ========== PAYMENT SETUP ==========
+async function renderPaymentSetup() {
+    const container = document.getElementById('settingsContent');
+    
+    try {
+        const [paymentSetup, banks] = await Promise.all([
+            apiCall('/settings/payment-setup'),
+            apiCall('/settings/banks')
+        ]);
+        
+        container.innerHTML = `
+            <div style="max-width: 600px;">
+                <h3>Payment Setup</h3>
+                ${paymentSetup?.payment_configured ? 
+                    `<div style="background:#d4edda; color:#155724; padding:15px; border-radius:8px; margin-bottom:20px;">
+                        <strong>✅ Payment Configured!</strong><br>
+                        Account: ${escapeHtml(paymentSetup.paystack_account_name)}<br>
+                        Bank: ${escapeHtml(banks?.find(b => b.code === paymentSetup.paystack_bank_code)?.name || paymentSetup.paystack_bank_code)}<br>
+                        Account Number: ${escapeHtml(paymentSetup.paystack_account_number)}
+                    </div>` : 
+                    `<div style="background:#fff3cd; color:#856404; padding:15px; border-radius:8px; margin-bottom:20px;">
+                        <strong>⚠️ Payment Not Configured</strong><br>
+                        Please set up your payment account to receive payments.
+                    </div>`
+                }
+                <div style="background:white; border:1px solid #e0e0e0; border-radius:8px; padding:20px;">
+                    <label>Bank</label>
+                    <select id="bankSelect" style="width:100%; padding:10px; margin-bottom:15px; border:1px solid #ddd; border-radius:4px;">
+                        <option value="">Select Bank</option>
+                        ${banks?.map(b => `<option value="${b.code}" ${paymentSetup?.paystack_bank_code === b.code ? 'selected' : ''}>${escapeHtml(b.name)}</option>`).join('') || ''}
+                    </select>
+                    <label>Account Number</label>
+                    <input type="text" id="accountNumber" placeholder="Enter account number" value="${escapeHtml(paymentSetup?.paystack_account_number || '')}" style="width:100%; padding:10px; margin-bottom:15px; border:1px solid #ddd; border-radius:4px;">
+                    <label>Account Name</label>
+                    <input type="text" id="accountName" placeholder="Enter account name" value="${escapeHtml(paymentSetup?.paystack_account_name || '')}" style="width:100%; padding:10px; margin-bottom:15px; border:1px solid #ddd; border-radius:4px;">
+                    <div id="paymentMsg" style="color:#e74c3c; font-size:13px; margin-top:5px; margin-bottom:15px;"></div>
+                    <div style="display:flex; gap:10px;">
+                        <button class="btn-cancel" onclick="renderSettings()">Cancel</button>
+                        <button class="btn-save" id="savePaymentBtn">Save Payment Setup</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.getElementById('savePaymentBtn').onclick = async () => {
+            const bankCode = document.getElementById('bankSelect').value;
+            const accountNumber = document.getElementById('accountNumber').value.trim();
+            const accountName = document.getElementById('accountName').value.trim();
+            const msg = document.getElementById('paymentMsg');
+            
+            if (!bankCode || !accountNumber || !accountName) {
+                msg.textContent = 'Please fill all fields';
+                return;
+            }
+            
+            const result = await apiCall('/settings/payment-setup', {
+                method: 'PUT',
+                body: JSON.stringify({
+                    paystack_bank_code: bankCode,
+                    paystack_account_number: accountNumber,
+                    paystack_account_name: accountName
+                })
+            });
+            
+            if (result?.error) {
+                msg.textContent = result.error;
+            } else {
+                msg.style.color = '#27ae60';
+                msg.textContent = '✅ Payment setup saved successfully!';
+                setTimeout(() => {
+                    renderPaymentSetup();
+                }, 1500);
+            }
+        };
+    } catch (error) {
+        container.innerHTML = `<div class="empty-state">Error loading payment setup: ${error.message}</div>`;
+    }
+}
 
 // ========== RENDER SMS TEMPLATES ==========
 async function renderSmsTemplates() {
