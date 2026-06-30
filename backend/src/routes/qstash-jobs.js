@@ -338,7 +338,7 @@ router.post('/process-paystack-webhook', async (req, res) => {
         if (event.event === 'charge.success') {
             const { reference, amount, metadata, customer } = event.data;
             
-            // Parse reference: rent_{ownerId}_{tenantId}_{timestamp}
+            // Parse reference: rent_{ownerId}_{tenantId}_{uuid}
             const referenceParts = reference.split('_');
             let ownerId, tenantId;
             
@@ -358,35 +358,83 @@ router.post('/process-paystack-webhook', async (req, res) => {
             const amountNaira = amount / 100;
 
             // Use transaction to ensure atomicity
-            const client = await pool.connect();
+            const dbClient = await pool.connect();
             try {
-                await client.query('BEGIN');
+                await dbClient.query('BEGIN');
 
-                // Insert payment
-                await client.query(
+                // ------------------------------
+                // INTEGRITY CHECK 1: Verify tenant still belongs to owner from reference
+                // ------------------------------
+                const tenantRes = await dbClient.query(
+                    'SELECT id, owner_id FROM tenants WHERE id = $1',
+                    [tenantId]
+                );
+                
+                if (tenantRes.rows.length === 0 || tenantRes.rows[0].owner_id !== ownerId) {
+                    console.error('❌ Tenant/Owner mismatch in Paystack webhook!', {
+                        reference,
+                        referenceOwnerId: ownerId,
+                        referenceTenantId: tenantId,
+                        dbOwnerId: tenantRes.rows[0]?.owner_id
+                    });
+                    await dbClient.query('COMMIT'); // Mark as processed even if integrity fails
+                    await redis.setex(idempotencyKey, 86400, 'true');
+                    return res.json({ success: true, flagged: true });
+                }
+
+                // ------------------------------
+                // INTEGRITY CHECK 2: Verify subaccount matches
+                // ------------------------------
+                const adminRes = await dbClient.query(
+                    'SELECT paystack_subaccount_code FROM admin WHERE id = $1',
+                    [ownerId]
+                );
+                
+                if (adminRes.rows.length === 0) {
+                    console.error('❌ Owner not found for Paystack webhook');
+                    await dbClient.query('COMMIT');
+                    await redis.setex(idempotencyKey, 86400, 'true');
+                    return res.json({ success: true, flagged: true });
+                }
+                
+                // Check that the subaccount in the Paystack event matches our stored subaccount
+                const storedSubaccount = adminRes.rows[0].paystack_subaccount_code;
+                const eventSubaccount = event.data?.subaccount?.code;
+                if (eventSubaccount && storedSubaccount && eventSubaccount !== storedSubaccount) {
+                    console.error('❌ Subaccount mismatch in Paystack webhook!', {
+                        reference,
+                        storedSubaccount,
+                        eventSubaccount
+                    });
+                    await dbClient.query('COMMIT');
+                    await redis.setex(idempotencyKey, 86400, 'true');
+                    return res.json({ success: true, flagged: true });
+                }
+
+                // ------------------------------
+                // All checks passed - now process payment
+                // ------------------------------
+                await dbClient.query(
                     `INSERT INTO payments (tenant_id, amount, payment_type, transaction_id, source, payment_date, owner_id)
                      VALUES ($1, $2, 'rent', $3, 'paystack', NOW(), $4)`,
                     [tenantId, amountNaira, reference, ownerId]
                 );
 
-                // Apply payment to bills
-                await applyPaymentToBillsPaystack(tenantId, amountNaira, reference, client);
+                await applyPaymentToBillsPaystack(tenantId, amountNaira, reference, dbClient);
 
-                await client.query('COMMIT');
+                await dbClient.query('COMMIT');
 
-                // Mark as processed in Redis with 24h TTL
                 await redis.setex(idempotencyKey, 86400, 'true');
 
                 console.log('✅ Paystack payment processed successfully:', reference);
                 res.json({ success: true });
             } catch (error) {
-                await client.query('ROLLBACK');
+                await dbClient.query('ROLLBACK');
                 throw error;
             } finally {
-                client.release();
+                dbClient.release();
             }
         } else {
-            // Log other events but don't process
             console.log('📥 Ignoring Paystack event:', event.event);
             await redis.setex(idempotencyKey, 86400, 'true');
             res.json({ success: true });

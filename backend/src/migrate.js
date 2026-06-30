@@ -190,6 +190,36 @@ const migrations = [
                 CREATE INDEX IF NOT EXISTS idx_admin_payment_configured ON admin(payment_configured)
             `);
         }
+    },
+    {
+        version: 6,
+        name: 'add_payment_config_audit_trail',
+        up: async (client) => {
+            await client.query(`
+                CREATE TABLE IF NOT EXISTS payment_config_audit (
+                    id SERIAL PRIMARY KEY,
+                    owner_id INTEGER NOT NULL REFERENCES admin(id) ON DELETE CASCADE,
+                    admin_id INTEGER NOT NULL REFERENCES admin(id) ON DELETE CASCADE,
+                    change_type VARCHAR(50) NOT NULL,
+                    old_account_name VARCHAR(255),
+                    new_account_name VARCHAR(255),
+                    old_bank_code VARCHAR(50),
+                    new_bank_code VARCHAR(50),
+                    old_account_number VARCHAR(50),
+                    new_account_number VARCHAR(50),
+                    old_subaccount_code VARCHAR(100),
+                    new_subaccount_code VARCHAR(100),
+                    created_at TIMESTAMP DEFAULT NOW()
+                )
+            `);
+            
+            await client.query(`
+                CREATE INDEX IF NOT EXISTS idx_payment_config_audit_owner_id ON payment_config_audit(owner_id)
+            `);
+            await client.query(`
+                CREATE INDEX IF NOT EXISTS idx_payment_config_audit_admin_id ON payment_config_audit(admin_id)
+            `);
+        }
     }
 ];
 
