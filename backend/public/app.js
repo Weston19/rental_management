@@ -2016,7 +2016,7 @@ async function renderProperties() {
         const paginatedProperties = getPaginatedData(properties);
         for (const property of paginatedProperties) {
             const propertyRooms = allRooms ? allRooms.filter(r => r.property_id === property.id) : [];
-            const totalUnits = propertyRooms.length;
+            const totalUnits = property.total_units || 0;
             const occupiedUnits = propertyRooms.filter(r => r.status === 'occupied').length;
             const monthlyRent = propertyRooms.filter(r => r.status === 'occupied').reduce((sum, r) => sum + (parseFloat(r.rent) || 0), 0);
             
