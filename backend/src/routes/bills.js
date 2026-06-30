@@ -9,11 +9,11 @@ const router = express.Router();
 router.use(auth, blockViewerWrites);
 
 // ─── Helper: verify a tenant belongs to this owner ────────────────────────────
-async function assertTenantOwnership(tenantId, ownerId) {
-    const r = await pool.query(
-        'SELECT id FROM tenants WHERE id = $1 AND owner_id = $2',
-        [tenantId, ownerId]
-    );
+async function assertTenantOwnership(tenantId, ownerId, allowDeleted = false) {
+    const query = allowDeleted
+        ? 'SELECT id FROM tenants WHERE id = $1 AND owner_id = $2'
+        : 'SELECT id FROM tenants WHERE id = $1 AND owner_id = $2 AND is_deleted = FALSE';
+    const r = await pool.query(query, [tenantId, ownerId]);
     return r.rows.length > 0;
 }
 
@@ -363,7 +363,7 @@ router.post('/award-penalties', async (req, res) => {
 // GET tenant balance breakdown — ownership enforced
 router.get('/tenant-breakdown/:tenantId', async (req, res) => {
     try {
-        if (!(await assertTenantOwnership(req.params.tenantId, req.ownerId))) {
+        if (!(await assertTenantOwnership(req.params.tenantId, req.ownerId, true))) {
             return res.status(404).json({ error: 'Tenant not found' });
         }
         const result = await pool.query(`
@@ -383,7 +383,7 @@ router.get('/tenant-breakdown/:tenantId', async (req, res) => {
 // GET tenant invoices
 router.get('/tenant-invoices/:tenantId', async (req, res) => {
     try {
-        if (!(await assertTenantOwnership(req.params.tenantId, req.ownerId))) {
+        if (!(await assertTenantOwnership(req.params.tenantId, req.ownerId, true))) {
             return res.status(404).json({ error: 'Tenant not found' });
         }
         const result = await pool.query(`
@@ -404,7 +404,7 @@ router.get('/tenant-invoices/:tenantId', async (req, res) => {
 // GET tenant balance
 router.get('/tenant-balance/:tenantId', async (req, res) => {
     try {
-        if (!(await assertTenantOwnership(req.params.tenantId, req.ownerId))) {
+        if (!(await assertTenantOwnership(req.params.tenantId, req.ownerId, true))) {
             return res.status(404).json({ error: 'Tenant not found' });
         }
         const result = await pool.query(
