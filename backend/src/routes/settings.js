@@ -202,7 +202,7 @@ router.get('/banks', async (req, res) => {
             return res.status(400).json({ error: 'Failed to fetch banks' });
         }
         // Filter for Nigerian banks only and simplify the response
-        const nigerianBanks = banksResult.data.filter(bank => b.country === 'Nigeria').map(bank => ({
+        const nigerianBanks = banksResult.data.filter(bank => bank.country === 'Nigeria').map(bank => ({
             code: bank.code,
             name: bank.name
         }));
