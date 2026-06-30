@@ -195,7 +195,7 @@
             left: 0;
             right: 0;
             bottom: 0;
-            background: rgba(0,0,0,0.5);
+            background: rgba(0,0,0,0.55);
             z-index: 200;
             justify-content: center;
             align-items: center;
@@ -204,26 +204,30 @@
         .modal-overlay.active { display: flex; }
         .modal-content {
             background: white;
-            border-radius: 12px;
-            padding: 24px;
+            border-radius: 16px;
+            padding: 28px 24px;
             max-width: 420px;
             width: 100%;
-            max-height: 80vh;
+            max-height: 88vh;
             overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.25);
         }
         .modal-content h3 { margin-bottom: 16px; color: #1e3a5f; font-size: 18px; }
         .modal-content label { font-size: 13px; font-weight: 500; color: #555; display: block; margin-top: 12px; margin-bottom: 4px; }
         .modal-content input, .modal-content select {
             width: 100%;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 6px;
+            padding: 10px 12px;
+            border: 1.5px solid #ddd;
+            border-radius: 8px;
             font-size: 14px;
+            transition: border-color 0.2s;
         }
+        .modal-content input:focus { outline: none; border-color: #1abc9c; }
         .modal-content .radio-group {
             display: flex;
-            gap: 15px;
+            gap: 8px;
             margin: 8px 0;
+            flex-wrap: wrap;
         }
         .modal-content .radio-group label {
             display: flex;
@@ -232,23 +236,137 @@
             font-weight: normal;
             font-size: 14px;
             margin: 0;
+            padding: 7px 14px;
+            border: 1.5px solid #ddd;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .modal-content .radio-group input[type="radio"] { display: none; }
+        .modal-content .radio-group input[type="radio"]:checked + span,
+        .modal-content .radio-group label:has(input:checked) {
+            border-color: #27ae60;
+            background: #f0faf4;
+            color: #27ae60;
+            font-weight: 600;
         }
         .modal-buttons {
             display: flex;
             gap: 10px;
-            margin-top: 18px;
+            margin-top: 20px;
         }
         .modal-buttons button {
             flex: 1;
-            padding: 10px;
+            padding: 12px;
             border: none;
-            border-radius: 6px;
+            border-radius: 8px;
             font-size: 14px;
+            font-weight: 600;
             cursor: pointer;
+            transition: opacity 0.2s, transform 0.1s;
         }
-        .btn-cancel { background: #95a5a6; color: white; }
+        .modal-buttons button:active { transform: scale(0.97); }
+        .btn-cancel { background: #ecf0f1; color: #666; }
         .btn-pay { background: #27ae60; color: white; }
         .btn-primary { background: #1abc9c; color: white; }
+        .btn-pay:hover { background: #219a52; }
+
+        /* Payment step — waiting */
+        .pay-waiting-icon {
+            width: 80px; height: 80px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #e8f5e9, #c8e6c9);
+            display: flex; align-items: center; justify-content: center;
+            margin: 0 auto 16px;
+            font-size: 36px;
+            animation: pulse-ring 1.6s ease-in-out infinite;
+        }
+        @keyframes pulse-ring {
+            0%   { box-shadow: 0 0 0 0 rgba(39,174,96,0.35); }
+            70%  { box-shadow: 0 0 0 16px rgba(39,174,96,0); }
+            100% { box-shadow: 0 0 0 0 rgba(39,174,96,0); }
+        }
+        .pay-timer {
+            font-size: 36px;
+            font-weight: 700;
+            color: #1e3a5f;
+            letter-spacing: 2px;
+            margin: 12px 0 4px;
+        }
+        .pay-timer.urgent { color: #e74c3c; }
+        .pay-progress-bar {
+            width: 100%;
+            height: 6px;
+            background: #e0e0e0;
+            border-radius: 6px;
+            margin: 10px 0 6px;
+            overflow: hidden;
+        }
+        .pay-progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #27ae60, #1abc9c);
+            border-radius: 6px;
+            transition: width 1s linear;
+        }
+        .pay-progress-fill.urgent { background: linear-gradient(90deg, #e74c3c, #ff6b6b); }
+
+        /* Payment step — success */
+        .pay-success-icon {
+            width: 80px; height: 80px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #27ae60, #1abc9c);
+            display: flex; align-items: center; justify-content: center;
+            margin: 0 auto 16px;
+            font-size: 36px;
+            animation: pop-in 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        @keyframes pop-in {
+            0% { transform: scale(0); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        /* Payment step — failed */
+        .pay-fail-icon {
+            width: 80px; height: 80px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #e74c3c, #ff6b6b);
+            display: flex; align-items: center; justify-content: center;
+            margin: 0 auto 16px;
+            font-size: 36px;
+            animation: pop-in 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        /* Phone hint row */
+        .phone-hint {
+            font-size: 12px;
+            color: #27ae60;
+            margin-top: 3px;
+            min-height: 16px;
+        }
+
+        /* Toast notification */
+        .toast {
+            position: fixed;
+            bottom: 90px;
+            left: 50%;
+            transform: translateX(-50%) translateY(20px);
+            background: #333;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 24px;
+            font-size: 13px;
+            white-space: nowrap;
+            z-index: 9999;
+            opacity: 0;
+            transition: opacity 0.25s, transform 0.25s;
+            pointer-events: none;
+        }
+        .toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+        .toast.error { background: #c0392b; }
+        .toast.success { background: #27ae60; }
         
         /* Hidden sections */
         .page { display: none; }
@@ -409,9 +527,9 @@
         <h4 style="font-size:16px; color:#333; margin-bottom:10px;">All Payments</h4>
         <div class="table-wrapper">
             <table>
-                <thead><tr><th>Date</th><th>Amount</th><th>Type</th><th>Transaction ID</th></tr></thead>
-                <tbody id="recentPayments">
-                    <tr class="empty-row"><td colspan="4">No payments found</td></tr>
+                <thead><tr><th>Date</th><th>Amount</th><th>Type</th><th>Transaction ID</th><th>Receipt</th></tr></thead>
+                <tbody id="allPayments">
+                    <tr class="empty-row"><td colspan="5">No payments found</td></tr>
                 </tbody>
             </table>
         </div>
@@ -472,24 +590,92 @@
 <!-- Payment Modal -->
 <div class="modal-overlay" id="payModal">
     <div class="modal-content">
-        <h3>Make Payment</h3>
-        <label>Select Payment Type</label>
-        <div class="radio-group" id="paymentTypeGroup">
-            <label><input type="radio" name="payType" value="rent" checked> Rent</label>
-            <label><input type="radio" name="payType" value="deposit"> Deposit</label>
-            <label><input type="radio" name="payType" value="penalty"> Penalty</label>
+
+        <!-- ── Step 1: Enter Details ── -->
+        <div id="payStep1">
+            <h3>💳 Make Payment</h3>
+
+            <label>Payment Type</label>
+            <div class="radio-group" id="paymentTypeGroup">
+                <label><input type="radio" name="payType" value="rent" checked><span>🏠 Rent</span></label>
+                <label><input type="radio" name="payType" value="deposit"><span>🔑 Deposit</span></label>
+                <label><input type="radio" name="payType" value="penalty"><span>⚠️ Penalty</span></label>
+            </div>
+
+            <label>Amount (KES)</label>
+            <input type="number" id="payAmount" placeholder="e.g. 5000" min="1" inputmode="numeric">
+
+            <label>M-Pesa Phone Number</label>
+            <input type="tel" id="payPhone" placeholder="07XXXXXXXX or 2547XXXXXXXX"
+                   inputmode="tel" oninput="previewPhone(this.value)">
+            <div class="phone-hint" id="phoneHint"></div>
+
+            <div id="payMsg" style="color:#e74c3c; font-size:13px; margin-top:8px; min-height:18px;"></div>
+
+            <div class="modal-buttons">
+                <button class="btn-cancel" onclick="closePayModal()">Cancel</button>
+                <button class="btn-pay" id="payNowBtn" onclick="startPayment()">💰 Pay Now</button>
+            </div>
         </div>
-        <label>Amount (KES)</label>
-        <input type="number" id="payAmount" placeholder="Enter amount" min="1">
-        <label>Phone Number (M-Pesa)</label>
-        <input type="tel" id="payPhone" placeholder="2547XXXXXXXX">
-        <div id="payMsg" style="color:#e74c3c; font-size:13px; margin-top:8px;"></div>
-        <div class="modal-buttons">
-            <button class="btn-cancel" onclick="closePayModal()">Cancel</button>
-            <button class="btn-pay" onclick="initiatePayment()">💰 Pay Now</button>
+
+        <!-- ── Step 2: Waiting for STK Push ── -->
+        <div id="payStep2" style="display:none; text-align:center; padding: 8px 0;">
+            <div class="pay-waiting-icon">📱</div>
+            <h3 style="margin-bottom:6px;">Check Your Phone</h3>
+            <p style="color:#666; font-size:14px; margin-bottom:4px;">
+                An M-Pesa prompt was sent to<br>
+                <strong id="payPhoneDisplay" style="color:#1e3a5f;">—</strong>
+            </p>
+            <p style="color:#888; font-size:12px; margin-bottom:8px;">
+                Enter your M-Pesa PIN to complete the payment.
+            </p>
+
+            <div class="pay-timer" id="payTimer">01:30</div>
+            <div style="font-size:12px; color:#aaa; margin-bottom:8px;">time remaining</div>
+            <div class="pay-progress-bar">
+                <div class="pay-progress-fill" id="payProgressFill" style="width:100%;"></div>
+            </div>
+
+            <div id="payPollMsg" style="font-size:12px; color:#888; margin-top:8px; min-height:16px;"></div>
+
+            <div class="modal-buttons" style="margin-top:20px;">
+                <button class="btn-cancel" onclick="cancelPayment()">Cancel</button>
+            </div>
         </div>
+
+        <!-- ── Step 3: Success ── -->
+        <div id="payStep3" style="display:none; text-align:center; padding: 8px 0;">
+            <div class="pay-success-icon">✅</div>
+            <h3 style="color:#27ae60; margin-bottom:8px;">Payment Successful!</h3>
+            <p style="color:#555; font-size:14px; margin-bottom:4px;" id="paySuccessMsg">
+                Your payment has been received.
+            </p>
+            <p style="color:#aaa; font-size:12px;">
+                Your dashboard will refresh automatically.
+            </p>
+            <div class="modal-buttons" style="margin-top:24px; justify-content:center;">
+                <button class="btn-pay" onclick="closePayModal(true)">Done 🎉</button>
+            </div>
+        </div>
+
+        <!-- ── Step 4: Failure ── -->
+        <div id="payStep4" style="display:none; text-align:center; padding: 8px 0;">
+            <div class="pay-fail-icon">❌</div>
+            <h3 style="color:#e74c3c; margin-bottom:8px;">Payment Failed</h3>
+            <p style="color:#666; font-size:14px;" id="payErrorMsg">
+                The payment could not be completed.
+            </p>
+            <div class="modal-buttons" style="margin-top:24px;">
+                <button class="btn-cancel" onclick="resetPayment()">← Try Again</button>
+                <button class="btn-pay" onclick="closePayModal()">Close</button>
+            </div>
+        </div>
+
     </div>
 </div>
+
+<!-- Toast notification -->
+<div class="toast" id="toastMsg"></div>
 
 <!-- Bottom Navigation -->
 <div class="bottom-nav">
@@ -680,64 +866,226 @@
     });
 
     // ========== PAYMENT MODAL ==========
+    let _payTimerInterval = null;
+    let _payPollInterval = null;
+    let _payCheckoutId = null;
+    let _payTimeLeft = 90; // seconds
+    const PAY_TIMEOUT = 90;
+
+    // Normalise phone on the frontend for the hint label
+    function normalizePhone(raw) {
+        let p = raw.replace(/\D/g, '');
+        if (p.startsWith('0') && p.length === 10)  p = '254' + p.slice(1);
+        else if (p.startsWith('7') && p.length === 9) p = '254' + p;
+        else if (p.startsWith('1') && p.length === 9) p = '254' + p;
+        else if (p.startsWith('+254')) p = p.slice(1);
+        return p;
+    }
+
+    function previewPhone(raw) {
+        const hint = document.getElementById('phoneHint');
+        if (!raw) { hint.textContent = ''; return; }
+        const p = normalizePhone(raw);
+        if (p.startsWith('254') && p.length === 12) {
+            hint.textContent = '✓ Will send to ' + p;
+            hint.style.color = '#27ae60';
+        } else {
+            hint.textContent = 'Use format: 07XXXXXXXX or 2547XXXXXXXX';
+            hint.style.color = '#e74c3c';
+        }
+    }
+
     function openPayModal() {
+        _clearPayIntervals();
+        _payCheckoutId = null;
         document.getElementById('payModal').classList.add('active');
         document.getElementById('payMsg').textContent = '';
         document.getElementById('payAmount').value = '';
         document.getElementById('payPhone').value = '';
-        // Default to rent
+        document.getElementById('phoneHint').textContent = '';
         document.querySelector('input[name="payType"][value="rent"]').checked = true;
-    }
-
-    function closePayModal() {
-        document.getElementById('payModal').classList.remove('active');
-    }
-
-    async function initiatePayment() {
-    const type = document.querySelector('input[name="payType"]:checked').value;
-    const amount = parseFloat(document.getElementById('payAmount').value);
-    const phone = document.getElementById('payPhone').value.trim();
-    const msg = document.getElementById('payMsg');
-    
-    if (!amount || amount <= 0) {
-        msg.textContent = 'Please enter a valid amount';
-        return;
-    }
-    if (!phone) {
-        msg.textContent = 'Please enter phone number (e.g., 254712345678)';
-        return;
-    }
-    
-    msg.textContent = 'Initiating payment...';
-    
-    try {
-        const response = await fetch(`${API_URL}/pay`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${tenantToken}`
-            },
-            body: JSON.stringify({
-                tenant_id: tenantData.id,
-                amount: amount,
-                payment_type: type,
-                phone_number: phone
-            })
-        });
-        
-        const result = await response.json();
-        
-        if (response.ok && result.success) {
-            // Redirect to Paystack's payment page for STK Push
-            window.location.href = result.authorization_url;
-        } else {
-            msg.textContent = result.error || 'Payment failed';
+        _showPayStep(1);
+        // Pre-fill phone from tenant profile
+        if (tenantData && tenantData.phone) {
+            document.getElementById('payPhone').value = tenantData.phone;
+            previewPhone(tenantData.phone);
         }
-    } catch (error) {
-        console.error('Payment error:', error);
-        msg.textContent = 'Connection error. Please try again.';
     }
-}
+
+    function closePayModal(refresh) {
+        _clearPayIntervals();
+        document.getElementById('payModal').classList.remove('active');
+        if (refresh) loadDashboard();
+    }
+
+    function _showPayStep(n) {
+        [1,2,3,4].forEach(i => {
+            document.getElementById('payStep' + i).style.display = (i === n) ? '' : 'none';
+        });
+    }
+
+    function resetPayment() {
+        _clearPayIntervals();
+        _payCheckoutId = null;
+        document.getElementById('payMsg').textContent = '';
+        _showPayStep(1);
+    }
+
+    function cancelPayment() {
+        _clearPayIntervals();
+        closePayModal();
+    }
+
+    function _clearPayIntervals() {
+        if (_payTimerInterval) { clearInterval(_payTimerInterval); _payTimerInterval = null; }
+        if (_payPollInterval)  { clearInterval(_payPollInterval);  _payPollInterval  = null; }
+    }
+
+    async function startPayment() {
+        const type   = document.querySelector('input[name="payType"]:checked').value;
+        const amount = parseFloat(document.getElementById('payAmount').value);
+        const rawPhone = document.getElementById('payPhone').value.trim();
+        const msg    = document.getElementById('payMsg');
+
+        msg.textContent = '';
+
+        if (!amount || amount <= 0) {
+            msg.textContent = 'Please enter a valid amount.';
+            return;
+        }
+        if (!rawPhone) {
+            msg.textContent = 'Please enter your M-Pesa phone number.';
+            return;
+        }
+        const phone = normalizePhone(rawPhone);
+        if (!phone.startsWith('254') || phone.length !== 12) {
+            msg.textContent = 'Invalid phone number. Use 07XXXXXXXX or 2547XXXXXXXX.';
+            return;
+        }
+
+        // Disable button while working
+        const btn = document.getElementById('payNowBtn');
+        btn.disabled = true;
+        btn.textContent = 'Sending…';
+
+        try {
+            const res = await fetch(`${API_URL}/mpesa/stkpush`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${tenantToken}`
+                },
+                body: JSON.stringify({
+                    phone_number: phone,
+                    amount: amount,
+                    payment_type: type
+                })
+            });
+
+            const data = await res.json();
+
+            if (!res.ok || !data.success) {
+                msg.textContent = data.error || 'Failed to initiate payment. Please try again.';
+                btn.disabled = false;
+                btn.textContent = '💰 Pay Now';
+                return;
+            }
+
+            // STK push sent — move to waiting step
+            _payCheckoutId = data.checkout_request_id;
+            document.getElementById('payPhoneDisplay').textContent = data.phone || phone;
+            _showPayStep(2);
+            _startCountdown();
+            _startPolling(data.demo);
+
+        } catch (err) {
+            msg.textContent = 'Connection error. Please check your internet and try again.';
+            btn.disabled = false;
+            btn.textContent = '💰 Pay Now';
+        }
+
+        btn.disabled = false;
+        btn.textContent = '💰 Pay Now';
+    }
+
+    function _startCountdown() {
+        _payTimeLeft = PAY_TIMEOUT;
+        _updateTimerDisplay();
+        _payTimerInterval = setInterval(() => {
+            _payTimeLeft--;
+            _updateTimerDisplay();
+            if (_payTimeLeft <= 0) {
+                _clearPayIntervals();
+                _onPaymentExpired();
+            }
+        }, 1000);
+    }
+
+    function _updateTimerDisplay() {
+        const m = Math.floor(_payTimeLeft / 60);
+        const s = _payTimeLeft % 60;
+        const label = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+        const timerEl = document.getElementById('payTimer');
+        const fillEl  = document.getElementById('payProgressFill');
+        timerEl.textContent = label;
+        const pct = (_payTimeLeft / PAY_TIMEOUT) * 100;
+        fillEl.style.width = pct + '%';
+        const urgent = _payTimeLeft <= 20;
+        timerEl.className = 'pay-timer' + (urgent ? ' urgent' : '');
+        fillEl.className  = 'pay-progress-fill' + (urgent ? ' urgent' : '');
+    }
+
+    function _startPolling(isDemo) {
+        // Poll every 5 seconds
+        let pollCount = 0;
+        const pollMsg = document.getElementById('payPollMsg');
+        _payPollInterval = setInterval(async () => {
+            pollCount++;
+            pollMsg.textContent = 'Checking status…';
+
+            if (!_payCheckoutId) return;
+
+            try {
+                const res = await fetch(`${API_URL}/mpesa/stkquery`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${tenantToken}`
+                    },
+                    body: JSON.stringify({ checkout_request_id: _payCheckoutId })
+                });
+
+                const data = await res.json();
+                const status = (data.status || '').toLowerCase();
+
+                if (status === 'completed') {
+                    _clearPayIntervals();
+                    document.getElementById('paySuccessMsg').textContent =
+                        `KES ${document.getElementById('payAmount').value} received successfully.`;
+                    _showPayStep(3);
+                    return;
+                }
+                if (status === 'failed' || status === 'cancelled') {
+                    _clearPayIntervals();
+                    const reason = data.result_desc || (status === 'cancelled' ? 'Payment was cancelled.' : 'The payment was declined by M-Pesa.');
+                    document.getElementById('payErrorMsg').textContent = reason;
+                    _showPayStep(4);
+                    return;
+                }
+
+                // Still pending
+                pollMsg.textContent = 'Waiting for M-Pesa confirmation…';
+            } catch {
+                pollMsg.textContent = 'Network error, retrying…';
+            }
+        }, 5000);
+    }
+
+    function _onPaymentExpired() {
+        document.getElementById('payErrorMsg').textContent =
+            'The M-Pesa prompt expired. Please try again.';
+        _showPayStep(4);
+    }
 
     // ========== CHANGE PASSWORD ==========
     async function changePassword() {
@@ -897,10 +1245,10 @@ async function fetchPaymentAndShowReceipt(paymentId) {
                 transaction_id: data.transaction_id || '-'
             });
         } else {
-            alert('Could not load receipt details');
+            showToast('Could not load receipt details', 'error');
         }
     } catch (error) {
-        alert('Error loading receipt');
+        showToast('Error loading receipt', 'error');
     }
 }
 
@@ -1093,9 +1441,19 @@ function downloadReceipt(paymentId) {
             return;
         }
     }
-    alert('Could not find payment details');
+    showToast('Could not find payment details', 'error');
 }
-function escapeHtml(str) {
+    // ========== TOAST NOTIFICATION ==========
+    function showToast(message, type) {
+        const el = document.getElementById('toastMsg');
+        el.textContent = message;
+        el.className = 'toast' + (type ? ' ' + type : '');
+        // Force reflow to restart animation
+        void el.offsetWidth;
+        el.classList.add('show');
+        clearTimeout(el._toastTimer);
+        el._toastTimer = setTimeout(() => el.classList.remove('show'), 3200);
+    }
     if (!str) return '';
     return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }

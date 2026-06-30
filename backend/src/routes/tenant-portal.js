@@ -6,7 +6,28 @@ const tenantAuth = require('../middleware/tenant-auth');
 const redis = require('../utils/redis');
 const loginRateLimiter = require('../middleware/rateLimit');
 const { validateTenantSignup, validateTenantLogin, validatePayment } = require('../middleware/validateInput');
+const { stkPushCircuit, stkQueryCircuit } = require('../circuits/mpesa-circuit');
 const router = express.Router();
+
+// ================================================================
+// PHONE NUMBER NORMALIZATION
+// ================================================================
+function normalizeKenyanPhone(raw) {
+    let phone = String(raw).replace(/\D/g, '');
+    if (phone.startsWith('0') && phone.length === 10) {
+        phone = '254' + phone.slice(1);
+    } else if (phone.startsWith('7') && phone.length === 9) {
+        phone = '254' + phone;
+    } else if (phone.startsWith('1') && phone.length === 9) {
+        phone = '254' + phone;
+    } else if (phone.startsWith('+254')) {
+        phone = phone.slice(1); // remove +
+    }
+    if (!phone.startsWith('254') || phone.length !== 12) {
+        throw new Error('Invalid Kenyan phone number. Use format: 07XXXXXXXX, 2547XXXXXXXX, or +2547XXXXXXXX');
+    }
+    return phone;
+}
 
 // ========== TENANT AUTH ==========
 // ========== TENANT SIGN UP (Phone Verification) ==========
@@ -416,6 +437,170 @@ router.post('/pay', tenantAuth, validatePayment, async (req, res) => {
         res.status(500).json({ 
             error: error.response?.data?.message || 'Server error' 
         });
+    }
+});
+
+// ================================================================
+// TENANT STK PUSH  (M-Pesa, tenant-authenticated)
+// ================================================================
+
+// POST /api/tenant-portal/mpesa/stkpush
+router.post('/mpesa/stkpush', tenantAuth, async (req, res) => {
+    const { phone_number, amount, payment_type } = req.body;
+    const tenantId = req.tenantId;
+
+    // --- Validate inputs ---
+    if (!phone_number) {
+        return res.status(400).json({ error: 'Phone number is required' });
+    }
+    if (!amount || isNaN(amount) || parseFloat(amount) <= 0) {
+        return res.status(400).json({ error: 'A valid amount is required' });
+    }
+
+    let formattedPhone;
+    try {
+        formattedPhone = normalizeKenyanPhone(phone_number);
+    } catch (err) {
+        return res.status(400).json({ error: err.message });
+    }
+
+    const amountInt = Math.round(parseFloat(amount));
+
+    // --- Build account reference from payment type prefix ---
+    let accountRef;
+    try {
+        const tenantRes = await pool.query(
+            'SELECT account_number, house_no FROM tenants WHERE id = $1',
+            [tenantId]
+        );
+        const houseNo = tenantRes.rows[0]?.account_number || tenantRes.rows[0]?.house_no || String(tenantId);
+        const prefix = payment_type === 'deposit' ? 'D' : payment_type === 'penalty' ? 'P' : '';
+        accountRef = prefix + houseNo;
+    } catch {
+        accountRef = 'RENTPAY';
+    }
+
+    // --- Check if M-Pesa credentials are set ---
+    const CONSUMER_KEY = process.env.MPESA_CONSUMER_KEY;
+    const CONSUMER_SECRET = process.env.MPESA_CONSUMER_SECRET;
+    const SHORTCODE = process.env.MPESA_SHORTCODE;
+    const PASSKEY = process.env.MPESA_PASSKEY;
+    const CALLBACK_URL = process.env.MPESA_CALLBACK_URL;
+
+    if (!CONSUMER_KEY || !CONSUMER_SECRET || !SHORTCODE || !PASSKEY || !CALLBACK_URL) {
+        // Demo / sandbox fallback
+        const mockCheckoutId = 'SIM_' + Date.now();
+        await pool.query(
+            `INSERT INTO payment_requests (checkout_request_id, amount, phone_number, status, created_at)
+             VALUES ($1, $2, $3, 'pending', NOW())`,
+            [mockCheckoutId, amountInt, formattedPhone]
+        );
+        return res.json({
+            success: true,
+            demo: true,
+            checkout_request_id: mockCheckoutId,
+            message: 'Demo mode: STK Push simulated (M-Pesa not configured)',
+            phone: formattedPhone
+        });
+    }
+
+    try {
+        if (stkPushCircuit.opened) {
+            return res.status(503).json({
+                success: false,
+                error: 'M-Pesa service temporarily unavailable. Please try again in 1 minute.'
+            });
+        }
+
+        const response = await stkPushCircuit.fire(
+            formattedPhone,
+            amountInt,
+            accountRef,
+            `${payment_type || 'rent'} payment`
+        );
+
+        if (response.CheckoutRequestID) {
+            await pool.query(
+                `INSERT INTO payment_requests (checkout_request_id, amount, phone_number, status, created_at)
+                 VALUES ($1, $2, $3, 'pending', NOW())
+                 ON CONFLICT (checkout_request_id) DO NOTHING`,
+                [response.CheckoutRequestID, amountInt, formattedPhone]
+            );
+        }
+
+        res.json({
+            success: true,
+            checkout_request_id: response.CheckoutRequestID,
+            merchant_request_id: response.MerchantRequestID,
+            phone: formattedPhone,
+            message: 'STK Push sent. Check your phone for the M-Pesa prompt.'
+        });
+    } catch (error) {
+        console.error('❌ Tenant STK Push Error:', error.message);
+        res.status(500).json({
+            success: false,
+            error: error.response?.data?.errorMessage || error.message || 'Failed to initiate STK Push'
+        });
+    }
+});
+
+// POST /api/tenant-portal/mpesa/stkquery  – poll payment status
+router.post('/mpesa/stkquery', tenantAuth, async (req, res) => {
+    const { checkout_request_id } = req.body;
+
+    if (!checkout_request_id) {
+        return res.status(400).json({ error: 'checkout_request_id is required' });
+    }
+
+    // Handle demo / simulated requests
+    if (String(checkout_request_id).startsWith('SIM_')) {
+        const row = await pool.query(
+            'SELECT status FROM payment_requests WHERE checkout_request_id = $1',
+            [checkout_request_id]
+        );
+        const status = row.rows[0]?.status || 'pending';
+        return res.json({ success: true, status, demo: true });
+    }
+
+    // Check local DB first (callback may have already arrived)
+    try {
+        const local = await pool.query(
+            'SELECT status FROM payment_requests WHERE checkout_request_id = $1',
+            [checkout_request_id]
+        );
+        if (local.rows.length > 0 && local.rows[0].status !== 'pending') {
+            return res.json({ success: true, status: local.rows[0].status });
+        }
+    } catch { /* fall through to live query */ }
+
+    // Check M-Pesa credentials
+    const CONSUMER_KEY = process.env.MPESA_CONSUMER_KEY;
+    const SHORTCODE = process.env.MPESA_SHORTCODE;
+    if (!CONSUMER_KEY || !SHORTCODE) {
+        // No credentials → just return pending
+        return res.json({ success: true, status: 'pending' });
+    }
+
+    try {
+        const queryResult = await stkQueryCircuit.fire(checkout_request_id);
+        // ResultCode 0 = success, 1032 = cancelled, others = failed/pending
+        const rc = parseInt(queryResult.ResultCode ?? queryResult.resultCode ?? -1);
+        let status = 'pending';
+        if (rc === 0) status = 'completed';
+        else if (rc === 1032) status = 'cancelled';
+        else if (rc !== -1) status = 'failed';
+
+        if (status !== 'pending') {
+            await pool.query(
+                'UPDATE payment_requests SET status = $1 WHERE checkout_request_id = $2',
+                [status, checkout_request_id]
+            );
+        }
+
+        res.json({ success: true, status, result_code: rc, result_desc: queryResult.ResultDesc });
+    } catch (error) {
+        // If the query itself fails, return pending so the timer can keep trying
+        res.json({ success: true, status: 'pending', note: 'Query inconclusive, keep polling' });
     }
 });
 
