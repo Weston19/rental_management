@@ -495,11 +495,13 @@
 
         <!-- Step 2: Waiting -->
         <div id="payStep2" style="display:none; text-align:center; padding:10px 0;">
-            <div style="font-size:52px; margin:16px 0;">📱</div>
-            <h3>Check Your Phone</h3>
-            <p style="color:#666; margin:8px 0 4px;">M-Pesa prompt sent to <strong id="payPhoneDisplay"></strong></p>
-            <p style="color:#888; font-size:13px; margin-bottom:16px;">Enter your M-Pesa PIN to complete payment.</p>
-            <div id="payTimer" style="font-size:32px; font-weight:bold; color:#1e3a5f; margin:12px 0;">01:30</div>
+            <div style="font-size:52px; margin:16px 0;">💳</div>
+            <h3>Complete Payment</h3>
+            <p style="color:#666; margin:8px 0 4px;">A Paystack checkout page opened in a new tab.</p>
+            <p style="color:#888; font-size:13px; margin-bottom:16px;">
+                Complete the payment there — this window will update automatically.
+            </p>
+            <div id="payTimer" style="font-size:32px; font-weight:bold; color:#1e3a5f; margin:12px 0;">05:00</div>
             <div style="font-size:12px; color:#aaa; margin-bottom:6px;">time remaining</div>
             <div style="width:100%; height:6px; background:#e0e0e0; border-radius:6px; overflow:hidden; margin-bottom:8px;">
                 <div id="payTimerFill" style="height:100%; width:100%; background:#27ae60; border-radius:6px; transition:width 1s linear;"></div>
@@ -723,8 +725,8 @@
     });
 
     // ========== PAYMENT MODAL ==========
-    let _payTimer = null, _payPoller = null, _payCheckoutId = null, _payTimeLeft = 90;
-    const PAY_TIMEOUT = 90;
+    let _payPoller = null, _payTimer = null, _payRef = null, _payTimeLeft = 300;
+    const PAY_TIMEOUT = 300; // 5 minutes for Paystack redirect flow
 
     function _normalizePhone(raw) {
         let p = raw.replace(/\D/g, '');
@@ -739,12 +741,12 @@
     }
 
     function _clearIntervals() {
-        clearInterval(_payTimer); _payTimer = null;
         clearInterval(_payPoller); _payPoller = null;
+        clearInterval(_payTimer);  _payTimer  = null;
     }
 
     function openPayModal() {
-        _clearIntervals(); _payCheckoutId = null;
+        _clearIntervals(); _payRef = null;
         document.getElementById('payModal').classList.add('active');
         document.getElementById('payMsg').textContent = '';
         document.getElementById('payAmount').value = '';
@@ -762,19 +764,19 @@
     function cancelPayment() { _clearIntervals(); closePayModal(); }
 
     function resetPayment() {
-        _clearIntervals(); _payCheckoutId = null;
+        _clearIntervals(); _payRef = null;
         document.getElementById('payMsg').textContent = '';
         _showStep(1);
     }
 
     async function initiatePayment() {
-        const type   = document.querySelector('input[name="payType"]:checked').value;
-        const amount = parseFloat(document.getElementById('payAmount').value);
+        const type     = document.querySelector('input[name="payType"]:checked').value;
+        const amount   = parseFloat(document.getElementById('payAmount').value);
         const rawPhone = document.getElementById('payPhone').value.trim();
-        const msg    = document.getElementById('payMsg');
+        const msg      = document.getElementById('payMsg');
 
         if (!amount || amount <= 0) { msg.textContent = 'Please enter a valid amount.'; return; }
-        if (!rawPhone) { msg.textContent = 'Please enter your M-Pesa phone number.'; return; }
+        if (!rawPhone)              { msg.textContent = 'Please enter your phone number.'; return; }
 
         const phone = _normalizePhone(rawPhone);
         if (!phone.startsWith('254') || phone.length !== 12) {
@@ -782,26 +784,34 @@
         }
 
         const btn = document.getElementById('payNowBtn');
-        btn.disabled = true; btn.textContent = 'Sending…';
+        btn.disabled = true; btn.textContent = 'Please wait…';
 
         try {
-            const res = await fetch(`${API_URL}/mpesa/stkpush`, {
+            const res = await fetch(`${API_URL}/pay`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tenantToken}` },
-                body: JSON.stringify({ phone_number: phone, amount, payment_type: type })
+                body: JSON.stringify({
+                    tenant_id: tenantData.id,
+                    amount,
+                    payment_type: type,
+                    phone_number: phone
+                })
             });
             const data = await res.json();
 
             if (!res.ok || !data.success) {
                 msg.textContent = data.error || 'Failed to initiate payment. Please try again.';
-                btn.disabled = false; btn.textContent = '💰 Pay Now'; return;
+                btn.disabled = false; btn.textContent = '💰 Pay Now';
+                return;
             }
 
-            _payCheckoutId = data.checkout_request_id;
-            document.getElementById('payPhoneDisplay').textContent = data.phone || phone;
+            // Open Paystack checkout in a new tab
+            _payRef = data.reference;
+            window.open(data.authorization_url, '_blank');
             _showStep(2);
             _startCountdown();
-            _startPolling();
+            _startPolling(_payRef);
+
         } catch (err) {
             msg.textContent = 'Connection error. Please try again.';
         }
@@ -820,35 +830,39 @@
 
     function _updateTimer() {
         const m = Math.floor(_payTimeLeft / 60), s = _payTimeLeft % 60;
-        document.getElementById('payTimer').textContent = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-        document.getElementById('payTimerFill').style.width = ((_payTimeLeft / PAY_TIMEOUT) * 100) + '%';
-        const urgent = _payTimeLeft <= 20;
-        document.getElementById('payTimer').style.color = urgent ? '#e74c3c' : '#1e3a5f';
-        document.getElementById('payTimerFill').style.background = urgent ? '#e74c3c' : '#27ae60';
+        const label = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+        const timerEl = document.getElementById('payTimer');
+        const fillEl  = document.getElementById('payTimerFill');
+        timerEl.textContent = label;
+        fillEl.style.width  = ((_payTimeLeft / PAY_TIMEOUT) * 100) + '%';
+        const urgent = _payTimeLeft <= 60;
+        timerEl.style.color       = urgent ? '#e74c3c' : '#1e3a5f';
+        fillEl.style.background   = urgent ? '#e74c3c' : '#27ae60';
     }
 
-    function _startPolling() {
+    function _startPolling(reference) {
         _payPoller = setInterval(async () => {
-            if (!_payCheckoutId) return;
-            document.getElementById('payPollMsg').textContent = 'Checking status…';
+            if (!reference) return;
+            document.getElementById('payPollMsg').textContent = 'Checking payment status…';
             try {
-                const res = await fetch(`${API_URL}/mpesa/stkquery`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tenantToken}` },
-                    body: JSON.stringify({ checkout_request_id: _payCheckoutId })
+                const res = await fetch(`${API_URL}/verify/${reference}`, {
+                    headers: { 'Authorization': `Bearer ${tenantToken}` }
                 });
                 const data = await res.json();
-                const status = (data.status || '').toLowerCase();
-                if (status === 'completed') {
+                const status = data?.data?.status;
+
+                if (status === 'success') {
                     _clearIntervals();
-                    document.getElementById('paySuccessMsg').textContent = `KES ${document.getElementById('payAmount').value} received successfully.`;
+                    document.getElementById('paySuccessMsg').textContent =
+                        `KES ${document.getElementById('payAmount').value} received successfully.`;
                     _showStep(3);
-                } else if (status === 'failed' || status === 'cancelled') {
+                } else if (status === 'failed' || status === 'abandoned') {
                     _clearIntervals();
-                    document.getElementById('payErrorMsg').textContent = data.result_desc || (status === 'cancelled' ? 'Payment was cancelled.' : 'Payment was declined.');
+                    document.getElementById('payErrorMsg').textContent =
+                        status === 'abandoned' ? 'Payment was cancelled.' : 'Payment was declined.';
                     _showStep(4);
                 } else {
-                    document.getElementById('payPollMsg').textContent = 'Waiting for M-Pesa confirmation…';
+                    document.getElementById('payPollMsg').textContent = 'Waiting for payment confirmation…';
                 }
             } catch (_) {
                 document.getElementById('payPollMsg').textContent = 'Network error, retrying…';
@@ -857,7 +871,7 @@
     }
 
     function _onExpired() {
-        document.getElementById('payErrorMsg').textContent = 'The M-Pesa prompt expired. Please try again.';
+        document.getElementById('payErrorMsg').textContent = 'Payment window expired. Please try again.';
         _showStep(4);
     }
 
