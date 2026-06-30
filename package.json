@@ -1,10 +1,14 @@
 {
-  "name": "rental-backend",
+  "name": "rental-management",
   "version": "1.0.0",
-  "main": "server.js",
+  "description": "Rental Management System",
+  "main": "api/admin.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js"
+    "dev": "node backend/src/api/admin.js",
+    "dev:tenant": "node backend/src/api/tenant.js",
+    "build": "echo 'Building...'",
+    "test": "echo 'Testing...'",
+    "migrate": "node backend/src/migrate.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.108.2",
@@ -19,7 +23,6 @@
     "multer": "^1.4.5-lts.1",
     "node-cron": "^3.0.3",
     "opossum": "^8.4.0",
-    "path": "^0.12.7",
     "pg": "^8.21.0"
   },
   "devDependencies": {

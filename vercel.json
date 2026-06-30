@@ -2,36 +2,26 @@
   "version": 2,
   "builds": [
     {
-      "src": "backend/server-admin.js",
+      "src": "api/admin.js",
       "use": "@vercel/node"
     },
     {
-      "src": "backend/server-tenant.js",
+      "src": "api/tenant.js",
       "use": "@vercel/node"
     }
   ],
   "routes": [
     {
       "src": "/admin(.*)",
-      "dest": "backend/server-admin.js"
+      "dest": "api/admin.js"
     },
     {
       "src": "^/(api/.*|uploads/.*)",
-      "dest": "backend/server-admin.js"
+      "dest": "api/admin.js"
     },
     {
       "src": "/(.*)",
-      "dest": "backend/server-tenant.js",
-      "has": [
-        {
-          "type": "host",
-          "value": "rental-management-jet.vercel.app"
-        }
-      ]
-    },
-    {
-      "src": "/(.*)",
-      "dest": "backend/server-admin.js",
+      "dest": "api/admin.js",
       "has": [
         {
           "type": "host",
@@ -41,7 +31,7 @@
     },
     {
       "src": "/(.*)",
-      "dest": "backend/server-tenant.js",
+      "dest": "api/tenant.js",
       "has": [
         {
           "type": "host",
@@ -51,7 +41,7 @@
     },
     {
       "src": "/(.*)",
-      "dest": "backend/server-tenant.js"
+      "dest": "api/tenant.js"
     }
   ],
   "env": {
