@@ -153,6 +153,43 @@ const migrations = [
                 }
             }
         }
+    },
+    {
+        version: 5,
+        name: 'add_paystack_columns_to_admin',
+        up: async (client) => {
+            // Add Paystack columns
+            const columnsToAdd = [
+                { name: 'paystack_subaccount_code', type: 'VARCHAR(100)' },
+                { name: 'paystack_bank_code', type: 'VARCHAR(50)' },
+                { name: 'paystack_account_number', type: 'VARCHAR(50)' },
+                { name: 'paystack_account_name', type: 'VARCHAR(255)' },
+                { name: 'payment_configured', type: 'BOOLEAN DEFAULT FALSE' }
+            ];
+
+            for (const col of columnsToAdd) {
+                const exists = await client.query(`
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_schema = 'public'
+                      AND table_name = 'admin'
+                      AND column_name = $1
+                `, [col.name]);
+
+                if (exists.rows.length === 0) {
+                    await client.query(`
+                        ALTER TABLE admin ADD COLUMN ${col.name} ${col.type}
+                    `);
+                }
+            }
+
+            // Create indexes
+            await client.query(`
+                CREATE INDEX IF NOT EXISTS idx_admin_paystack_subaccount_code ON admin(paystack_subaccount_code)
+            `);
+            await client.query(`
+                CREATE INDEX IF NOT EXISTS idx_admin_payment_configured ON admin(payment_configured)
+            `);
+        }
     }
 ];
 

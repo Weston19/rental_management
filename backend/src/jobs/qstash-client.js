@@ -87,10 +87,39 @@ async function queueMonthlyBills() {
     }
 }
 
+/**
+ * Queue Paystack webhook processing (critical)
+ */
+async function queuePaystackWebhook(data) {
+    if (!qstashAvailable) {
+        console.log('⚠️ QStash not configured, skipping queue');
+        return { success: true, message: 'QStash not configured' };
+    }
+    try {
+        // Use Paystack event ID if available for deduplication
+        const deduplicationId = data.id ? `paystack-${data.id}` : `paystack-${Date.now()}`;
+        
+        const result = await qstashClient.publishJSON({
+            url: `${process.env.BASE_URL || 'http://localhost:5016'}/api/qstash/process-paystack-webhook`,
+            body: data,
+            retries: 5,
+            delay: 0,
+            deduplicationId: deduplicationId
+        });
+        
+        console.log('📤 Paystack webhook processing queued:', result.messageId);
+        return { success: true, messageId: result.messageId };
+    } catch (error) {
+        console.error('❌ Failed to queue Paystack webhook:', error);
+        return { success: false, error: error.message };
+    }
+}
+
 module.exports = {
     qstashClient,
     queueStkPush,
     queueCallbackProcessing,
     queueMonthlyBills,
+    queuePaystackWebhook,
     isQStashAvailable: () => qstashAvailable
 };

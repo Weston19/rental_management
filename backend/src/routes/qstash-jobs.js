@@ -1,5 +1,6 @@
 const express = require('express');
 const pool = require('../utils/db');
+const redis = require('../utils/redis');
 const { stkPushCircuit, stkQueryCircuit } = require('../circuits/mpesa-circuit');
 const router = express.Router();
 
@@ -282,6 +283,117 @@ router.post('/generate-bills', async (req, res) => {
         res.json({ success: true, created, skipped });
     } catch (error) {
         console.error('❌ Bill generation failed:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// ========== JOB 4: Process Paystack Webhook ==========
+async function applyPaymentToBillsPaystack(tenantId, amount, transactionId, client) {
+    const bills = await client.query(
+        `SELECT id, total_bill, total_paid FROM bills WHERE tenant_id = $1 AND total_bill > total_paid ORDER BY bill_month ASC FOR UPDATE`,
+        [tenantId]
+    );
+    
+    let remainingAmount = amount;
+    for (const bill of bills.rows) {
+        if (remainingAmount <= 0) break;
+        const billOwed = parseFloat(bill.total_bill) - parseFloat(bill.total_paid);
+        const paymentToApply = Math.min(remainingAmount, billOwed);
+        
+        if (paymentToApply > 0) {
+            const newTotalPaid = parseFloat(bill.total_paid) + paymentToApply;
+            let newStatus = 'not_paid';
+            if (newTotalPaid >= parseFloat(bill.total_bill)) newStatus = 'paid';
+            else if (newTotalPaid > 0) newStatus = 'partially_paid';
+            
+            await client.query(
+                `UPDATE bills SET total_paid = $1, status = $2, updated_at = NOW() WHERE id = $3`,
+                [newTotalPaid, newStatus, bill.id]
+            );
+            remainingAmount -= paymentToApply;
+        }
+    }
+    
+    await client.query(
+        `UPDATE tenants SET balance = (SELECT COALESCE(SUM(total_bill - total_paid), 0) FROM bills WHERE tenant_id = $1) WHERE id = $1`,
+        [tenantId]
+    );
+}
+
+router.post('/process-paystack-webhook', async (req, res) => {
+    console.log('🔄 Processing Paystack webhook');
+    const event = req.body;
+    
+    try {
+        // Step 1: IDEMPOTENCY CHECK - use Redis to prevent duplicate processing
+        const idempotencyKey = `paystack:processed:${event.id || event.data?.reference}`;
+        const alreadyProcessed = await redis.get(idempotencyKey);
+        
+        if (alreadyProcessed) {
+            console.log('⚠️ Paystack webhook already processed:', idempotencyKey);
+            return res.json({ success: true, duplicate: true });
+        }
+
+        // Step 2: Handle specific events
+        if (event.event === 'charge.success') {
+            const { reference, amount, metadata, customer } = event.data;
+            
+            // Parse reference: rent_{ownerId}_{tenantId}_{timestamp}
+            const referenceParts = reference.split('_');
+            let ownerId, tenantId;
+            
+            if (referenceParts.length >= 3 && referenceParts[0] === 'rent') {
+                ownerId = parseInt(referenceParts[1]);
+                tenantId = parseInt(referenceParts[2]);
+            } else if (metadata?.owner_id && metadata?.tenant_id) {
+                ownerId = metadata.owner_id;
+                tenantId = metadata.tenant_id;
+            } else {
+                console.log('❌ Could not extract owner/tenant from Paystack webhook');
+                await redis.setex(idempotencyKey, 86400, 'true'); // mark as processed
+                return res.json({ success: true });
+            }
+
+            // Convert from kobo to NGN/KES (divide by 100)
+            const amountNaira = amount / 100;
+
+            // Use transaction to ensure atomicity
+            const client = await pool.connect();
+            try {
+                await client.query('BEGIN');
+
+                // Insert payment
+                await client.query(
+                    `INSERT INTO payments (tenant_id, amount, payment_type, transaction_id, source, payment_date, owner_id)
+                     VALUES ($1, $2, 'rent', $3, 'paystack', NOW(), $4)`,
+                    [tenantId, amountNaira, reference, ownerId]
+                );
+
+                // Apply payment to bills
+                await applyPaymentToBillsPaystack(tenantId, amountNaira, reference, client);
+
+                await client.query('COMMIT');
+
+                // Mark as processed in Redis with 24h TTL
+                await redis.setex(idempotencyKey, 86400, 'true');
+
+                console.log('✅ Paystack payment processed successfully:', reference);
+                res.json({ success: true });
+            } catch (error) {
+                await client.query('ROLLBACK');
+                throw error;
+            } finally {
+                client.release();
+            }
+        } else {
+            // Log other events but don't process
+            console.log('📥 Ignoring Paystack event:', event.event);
+            await redis.setex(idempotencyKey, 86400, 'true');
+            res.json({ success: true });
+        }
+
+    } catch (error) {
+        console.error('❌ Paystack webhook processing failed:', error);
         res.status(500).json({ success: false, error: error.message });
     }
 });

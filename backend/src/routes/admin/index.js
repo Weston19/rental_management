@@ -6,15 +6,24 @@ const roomRoutes = require('../rooms');
 const billRoutes = require('../bills');
 const financialRoutes = require('../financials');
 const settingsRoutes = require('../settings');
+const paymentsRoutes = require('../payments');
+const paystackRoutes = require('../paystack');
+const qstashRoutes = require('../qstash-jobs');
 
 const router = express.Router();
-router.use(auth); // All admin routes require auth
 
+// Non-auth routes (webhooks, qstash)
+router.use('/qstash', qstashRoutes);
+router.use('/paystack', paystackRoutes);
+
+// Auth-required routes
+router.use(auth);
 router.use('/properties', propertyRoutes);
 router.use('/tenants', tenantRoutes);
 router.use('/rooms', roomRoutes);
 router.use('/bills', billRoutes);
 router.use('/financials', financialRoutes);
 router.use('/settings', settingsRoutes);
+router.use('/payments', paymentsRoutes);
 
 module.exports = router;
