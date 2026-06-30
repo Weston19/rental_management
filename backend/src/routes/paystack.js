@@ -631,17 +631,22 @@ router.post('/charge', auth, async (req, res) => {
 router.get('/callback', async (req, res) => {
     try {
         const { reference } = req.query;
-        res.json({ 
-            success: true, 
-            reference: reference,
-            message: 'Payment received. Processing in background.' 
-        });
+        
+        if (reference) {
+            // Verify the transaction
+            try {
+                const verifyResult = await verifyTransactionCircuit.fire(reference);
+                console.log('✅ Paystack transaction verified:', verifyResult.data);
+            } catch (verifyError) {
+                console.error('❌ Error verifying transaction:', verifyError);
+            }
+        }
+        
+        // Redirect back to tenant dashboard
+        res.redirect('/tenant-dashboard.html');
     } catch (error) {
         console.error('❌ Paystack callback error:', error);
-        res.status(500).json({ 
-            success: false, 
-            error: 'Error processing payment' 
-        });
+        res.redirect('/tenant-dashboard.html');
     }
 });
 
