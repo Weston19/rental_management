@@ -10,7 +10,9 @@ const {
     createSubaccountCircuit, 
     updateSubaccountCircuit,
     initializeTransactionCircuit, 
-    verifyTransactionCircuit 
+    verifyTransactionCircuit,
+    initiateChargeCircuit,
+    submitChargePinCircuit
 } = require('../circuits/paystack-circuit');
 const { queuePaystackWebhook } = require('../jobs/qstash-client');
 
@@ -542,6 +544,84 @@ router.post('/reconcile', async (req, res) => {
     } catch (error) {
         console.error('❌ Reconciliation error:', error);
         res.status(500).json({ success: false, error: 'Reconciliation failed' });
+    }
+});
+
+// =============================================================
+// 10. INITIATE CHARGE (STK Push/Bank) - Tenant Side
+// =============================================================
+router.post('/charge', auth, async (req, res) => {
+    try {
+        const { amount, email, phone, channel, metadata = {} } = req.body;
+
+        if (!amount || amount <= 0) {
+            return res.status(400).json({ 
+                success: false, 
+                error: 'Valid amount is required' 
+            });
+        }
+
+        // Get TENANT'S details from auth
+        const tenantRes = await pool.query(
+            `SELECT t.email, t.first_name, t.last_name, t.id AS tenant_id, t.phone,
+                    a.currency, a.payment_type, a.provider_code, a.provider_name,
+                    a.account_number, a.account_name, a.payment_configured,
+                    a.paystack_subaccount_code, a.id AS owner_id
+             FROM tenants t
+             JOIN admin a ON t.owner_id = a.id
+             WHERE t.id = $1`,
+            [req.tenantId || req.userId]
+        );
+
+        if (tenantRes.rows.length === 0) {
+            return res.status(404).json({ 
+                success: false, 
+                error: 'Tenant not found' 
+            });
+        }
+
+        const tenant = tenantRes.rows[0];
+        const tenantEmail = email || tenant.email;
+
+        if (!tenantEmail) {
+            return res.status(400).json({ 
+                success: false, 
+                error: 'Tenant email is required' 
+            });
+        }
+
+        if (!tenant.payment_configured) {
+            return res.status(400).json({ 
+                success: false, 
+                error: 'Agency payment not configured' 
+            });
+        }
+
+        // Generate unique reference with ALL server-known IDs
+        const cryptoRandom = crypto.randomUUID();
+        const reference = `rent_${tenant.owner_id}_${tenant.tenant_id}_${cryptoRandom}`;
+
+        // Initialize charge with or without subaccount
+        const result = await initiateChargeCircuit.fire(
+            tenantEmail,
+            amount,
+            reference,
+            phone || tenant.phone,
+            channel,
+            tenant.paystack_subaccount_code
+        );
+
+        res.json({ 
+            success: true, 
+            message: 'Charge initiated successfully',
+            data: result.data
+        });
+    } catch (error) {
+        console.error('❌ Initiate charge error:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: error.response?.data || error.message 
+        });
     }
 });
 

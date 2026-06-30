@@ -349,34 +349,59 @@ router.put('/update-phone/:tenantId', tenantAuth, async (req, res) => {
     }
 });
 
-// ========== INITIATE M-PESA PAYMENT ==========
+// ========== INITIATE PAYMENT (Paystack) ==========
+const { initiateCharge } = require('../circuits/paystack-circuit');
+const crypto = require('crypto');
 
 router.post('/pay', tenantAuth, validatePayment, async (req, res) => {
-    const { tenant_id, amount, payment_type, phone_number } = req.body;
+    const { amount, phone_number, payment_type, email } = req.body;
+    const tenantId = req.tenantId;
     
     try {
-        const tenant = await pool.query('SELECT * FROM tenants WHERE id = $1', [tenant_id]);
-        if (tenant.rows.length === 0) {
+        const tenantRes = await pool.query(
+            `SELECT t.*, 
+                    a.payment_configured, a.paystack_subaccount_code, 
+                    a.currency, a.payment_type AS admin_payment_type 
+             FROM tenants t 
+             JOIN admin a ON t.owner_id = a.id 
+             WHERE t.id = $1`,
+            [tenantId]
+        );
+        
+        if (tenantRes.rows.length === 0) {
             return res.status(404).json({ error: 'Tenant not found' });
         }
         
-        // Generate checkout request ID
-        const checkoutRequestID = 'CHECKOUT_' + Date.now() + '_' + tenant_id;
+        const tenant = tenantRes.rows[0];
         
-        // Store payment request in a temporary table (or memory)
-        // For now, we'll simulate the response
+        if (!tenant.payment_configured) {
+            return res.status(400).json({ error: 'Agency payment not configured' });
+        }
+        
+        // Generate unique reference with ALL server-known IDs
+        const cryptoRandom = crypto.randomUUID();
+        const reference = `rent_${tenant.owner_id}_${tenantId}_${cryptoRandom}`;
+        
+        // Use Paystack's charge for M-Pesa/STK Push
+        const result = await initiateCharge({
+            email: email || tenant.email,
+            amount: amount,
+            reference: reference,
+            phone: phone_number || tenant.phone,
+            channel: tenant.admin_payment_type === 'mobile money' ? 'mobile_money' : 'bank',
+            subaccount_code: tenant.paystack_subaccount_code
+        });
         
         res.json({
             success: true,
-            message: 'STK Push sent successfully',
-            checkout_request_id: checkoutRequestID,
-            phone_number: phone_number,
-            amount: amount,
-            payment_type: payment_type
+            message: 'Payment initiated successfully',
+            ...result
         });
     } catch (error) {
         console.error('Payment initiation error:', error);
-        res.status(500).json({ error: 'Server error' });
+        res.status(500).json({ 
+            error: error.response?.data?.message || 'Server error' 
+        });
     }
 });
 

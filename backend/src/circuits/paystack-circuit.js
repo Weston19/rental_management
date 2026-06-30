@@ -46,8 +46,40 @@ async function resolveBankAccount(accountNumber, bankCode) {
 }
 
 // ========== LIST BANKS ==========
-async function listBanks(country = 'ng') {
+async function listBanks(country = 'ke') {
     return await makePaystackRequest('GET', `/bank?country=${country}`);
+}
+
+// ========== INITIATE CHARGE (STK Push/Bank) ==========
+async function initiateCharge(email, amount, reference, phone, channel, subaccountCode = null) {
+    const payload = {
+        email,
+        amount: Math.round(amount * 100), // Convert to kobo
+        reference,
+        callback_url: `${process.env.APP_BASE_URL || process.env.BASE_URL}/api/paystack/callback`,
+        channels: channel ? [channel] : ['mobile_money', 'card', 'bank'],
+        metadata: {}
+    };
+
+    if (subaccountCode) {
+        payload.subaccount = subaccountCode;
+        payload.bearer = 'subaccount';
+    }
+
+    // For mobile money, add phone
+    if (channel === 'mobile_money' && phone) {
+        payload.metadata.phone = phone;
+    }
+
+    return await makePaystackRequest('POST', '/charge', payload);
+}
+
+// ========== SUBMIT PIN/OTP for charge ==========
+async function submitChargePin(reference, pin) {
+    return await makePaystackRequest('POST', '/charge/submit_pin', {
+        reference,
+        pin
+    });
 }
 
 // ========== CREATE SUBACCOUNT ==========
@@ -94,6 +126,8 @@ const createSubaccountCircuit = new CircuitBreaker(createSubaccount, circuitOpti
 const updateSubaccountCircuit = new CircuitBreaker(updateSubaccount, circuitOptions);
 const initializeTransactionCircuit = new CircuitBreaker(initializeTransaction, circuitOptions);
 const verifyTransactionCircuit = new CircuitBreaker(verifyTransaction, circuitOptions);
+const initiateChargeCircuit = new CircuitBreaker(initiateCharge, circuitOptions);
+const submitChargePinCircuit = new CircuitBreaker(submitChargePin, circuitOptions);
 
 // ========== CIRCUIT EVENT LISTENERS ==========
 function setupCircuitListeners(circuit, name) {
@@ -120,6 +154,8 @@ setupCircuitListeners(createSubaccountCircuit, 'Create Subaccount');
 setupCircuitListeners(updateSubaccountCircuit, 'Update Subaccount');
 setupCircuitListeners(initializeTransactionCircuit, 'Initialize Transaction');
 setupCircuitListeners(verifyTransactionCircuit, 'Verify Transaction');
+setupCircuitListeners(initiateChargeCircuit, 'Initiate Charge');
+setupCircuitListeners(submitChargePinCircuit, 'Submit Charge PIN');
 
 // ========== EXPORT ==========
 module.exports = {
@@ -129,12 +165,14 @@ module.exports = {
     updateSubaccountCircuit,
     initializeTransactionCircuit,
     verifyTransactionCircuit,
+    initiateChargeCircuit,
+    submitChargePinCircuit,
     
     // Helper functions for easier usage
     resolveAccount: async ({ account_number, bank_code }) => {
         return await resolveBankCircuit.fire(account_number, bank_code);
     },
-    listBanks: async (country = 'ng') => {
+    listBanks: async (country = 'ke') => {
         return await listBanksCircuit.fire(country);
     },
     createSubaccount: async ({ business_name, settlement_bank, account_number, percentage_charge = 0 }) => {
@@ -149,6 +187,12 @@ module.exports = {
     verifyTransaction: async (reference) => {
         return await verifyTransactionCircuit.fire(reference);
     },
+    initiateCharge: async ({ email, amount, reference, phone, channel, subaccount_code = null }) => {
+        return await initiateChargeCircuit.fire(email, amount, reference, phone, channel, subaccount_code);
+    },
+    submitChargePin: async ({ reference, pin }) => {
+        return await submitChargePinCircuit.fire(reference, pin);
+    },
     
     // Helper to check circuit state
     isAnyCircuitOpen: () => {
@@ -157,6 +201,8 @@ module.exports = {
                createSubaccountCircuit.opened ||
                updateSubaccountCircuit.opened ||
                initializeTransactionCircuit.opened ||
-               verifyTransactionCircuit.opened;
+               verifyTransactionCircuit.opened ||
+               initiateChargeCircuit.opened ||
+               submitChargePinCircuit.opened;
     }
 };
