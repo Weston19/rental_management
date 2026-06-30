@@ -32,7 +32,7 @@ router.get('/', async (req, res) => {
         const result = await pool.query(`
             SELECT p.*,
                    COALESCE(SUM(r.rent), 0) AS total_rent,
-                   COUNT(r.id)              AS total_units
+                   COUNT(CASE WHEN r.status = 'occupied' THEN 1 END) AS occupied_units
             FROM properties p
             LEFT JOIN rooms r ON p.id = r.property_id
             WHERE p.owner_id = $1
@@ -40,8 +40,14 @@ router.get('/', async (req, res) => {
             ORDER BY p.id DESC
         `, [req.ownerId]);
 
-        await redis.set(cacheKey, JSON.stringify(result.rows), { ex: 3600 });
-        res.json(result.rows);
+        // Map total_rooms from database to total_units for frontend compatibility
+        const propertiesWithUnits = result.rows.map(p => ({
+            ...p,
+            total_units: p.total_rooms
+        }));
+
+        await redis.set(cacheKey, JSON.stringify(propertiesWithUnits), { ex: 3600 });
+        res.json(propertiesWithUnits);
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Server error' });
@@ -61,7 +67,6 @@ router.get('/:id', async (req, res) => {
         const property = await pool.query(`
             SELECT p.*,
                    COALESCE(SUM(r.rent), 0) AS total_rent,
-                   COUNT(r.id)              AS total_units,
                    COUNT(CASE WHEN r.status = 'occupied' THEN 1 END) AS occupied_count
             FROM properties p
             LEFT JOIN rooms r ON p.id = r.property_id
@@ -83,7 +88,12 @@ router.get('/:id', async (req, res) => {
             ORDER BY r.house_no
         `, [req.params.id]);
 
-        const data = { ...property.rows[0], rooms: rooms.rows };
+        // Map total_rooms from database to total_units for frontend compatibility
+        const data = { 
+            ...property.rows[0], 
+            total_units: property.rows[0].total_rooms,
+            rooms: rooms.rows 
+        };
         await redis.set(cacheKey, JSON.stringify(data), { ex: 3600 });
         res.json(data);
     } catch (error) {
@@ -94,14 +104,14 @@ router.get('/:id', async (req, res) => {
 
 // POST add property
 router.post('/', async (req, res) => {
-    const { name, location, landlord_name, billing_day, penalty_amount, image_url } = req.body;
+    const { name, location, landlord_name, total_units, billing_day, penalty_amount, image_url } = req.body;
 
     try {
         const result = await pool.query(
             `INSERT INTO properties
                 (name, location, landlord_name, total_rooms, occupied_rooms, billing_day, penalty_amount, image_url, owner_id)
-             VALUES ($1, $2, $3, 0, 0, $4, $5, $6, $7) RETURNING *`,
-            [name, location, landlord_name, billing_day || 1, penalty_amount || 0, image_url, req.ownerId]
+             VALUES ($1, $2, $3, $4, 0, $5, $6, $7, $8) RETURNING *`,
+            [name, location, landlord_name, total_units || 0, billing_day || 1, penalty_amount || 0, image_url, req.ownerId]
         );
 
         await redis.del(`all_properties:${req.ownerId}`);
@@ -114,7 +124,7 @@ router.post('/', async (req, res) => {
 
 // PUT update property — owner-scoped
 router.put('/:id', async (req, res) => {
-    const { name, location, landlord_name, billing_day, penalty_amount, image_url } = req.body;
+    const { name, location, landlord_name, total_units, billing_day, penalty_amount, image_url } = req.body;
 
     try {
         // First, get the current property to keep existing values if not provided
@@ -129,12 +139,13 @@ router.put('/:id', async (req, res) => {
         const result = await pool.query(
             `UPDATE properties
              SET name = $1, location = $2, landlord_name = $3,
-                 billing_day = COALESCE($4, billing_day),
-                 penalty_amount = COALESCE($5, penalty_amount),
-                 image_url = $6
-             WHERE id = $7 AND owner_id = $8
+                 total_rooms = COALESCE($4, total_rooms),
+                 billing_day = COALESCE($5, billing_day),
+                 penalty_amount = COALESCE($6, penalty_amount),
+                 image_url = $7
+             WHERE id = $8 AND owner_id = $9
              RETURNING *`,
-            [name, location, landlord_name, billing_day, penalty_amount, image_url, req.params.id, req.ownerId]
+            [name, location, landlord_name, total_units, billing_day, penalty_amount, image_url, req.params.id, req.ownerId]
         );
 
         if (result.rows.length === 0) {
