@@ -2174,12 +2174,12 @@ window.deleteProperty = async (id) => {
     }
 };
 function showAddPropertyModal() {
-    const modalHtml = `<div class="modal-content"><h3>Add new property</h3><label>Property name</label><input type="text" id="propName" autocomplete="off"><label>Manager</label><input type="text" id="propManager" autocomplete="off"><label>Location</label><input type="text" id="propLocation" autocomplete="off"><label>Number of units</label><input type="number" id="propUnits" value="0"><label>Penalty (KES)</label><input type="number" id="propPenalty" value="0"><label>Upload Photo</label><input type="file" id="propImage" accept="image/*"><div id="imagePreview"></div><div class="modal-buttons"><button class="btn-cancel" id="closeModalBtn">Cancel</button><button class="btn-save" id="saveModalBtn">Add Property</button></div></div>`;
+    const modalHtml = `<div class="modal-content"><h3>Add new property</h3><label>Property name</label><input type="text" id="propName" autocomplete="off"><label>Manager</label><input type="text" id="propManager" autocomplete="off"><label>Location</label><input type="text" id="propLocation" autocomplete="off"><label>Penalty (KES)</label><input type="number" id="propPenalty" value="0"><label>Upload Photo</label><input type="file" id="propImage" accept="image/*"><div id="imagePreview"></div><div class="modal-buttons"><button class="btn-cancel" id="closeModalBtn">Cancel</button><button class="btn-save" id="saveModalBtn">Add Property</button></div></div>`;
     showModal(modalHtml, async () => {
         let imageUrl = null;
         const file = document.getElementById('propImage').files[0];
         if (file) imageUrl = await uploadImage(file, 'property');
-        await apiCall('/properties', { method: 'POST', body: JSON.stringify({ name: document.getElementById('propName').value, landlord_name: document.getElementById('propManager').value, location: document.getElementById('propLocation').value, total_rooms: parseInt(document.getElementById('propUnits').value) || 0, occupied_rooms: 0, billing_day: 1, penalty_amount: parseFloat(document.getElementById('propPenalty').value) || 0, image_url: imageUrl }) });
+        await apiCall('/properties', { method: 'POST', body: JSON.stringify({ name: document.getElementById('propName').value, landlord_name: document.getElementById('propManager').value, location: document.getElementById('propLocation').value, billing_day: 1, penalty_amount: parseFloat(document.getElementById('propPenalty').value) || 0, image_url: imageUrl }) });
         renderProperties();
     });
     document.getElementById('propImage')?.addEventListener('change', (e) => {

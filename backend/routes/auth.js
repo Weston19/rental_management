@@ -12,9 +12,10 @@ const router = express.Router();
 
 // ─── Helper: sign a token with both adminId and ownerId ───────────────────────
 function signToken(adminId, ownerId) {
+    const secret = process.env.NEXT_PUBLIC_SUPABASE_URL_SUPABASE_JWT_SECRET || 'fallback-secret-for-development-only-change-in-production';
     return jwt.sign(
         { adminId, ownerId },
-        process.env.NEXT_PUBLIC_SUPABASE_URL_SUPABASE_JWT_SECRET,
+        secret,
         { expiresIn: '8h' }
     );
 }
@@ -87,8 +88,9 @@ router.post('/login', loginRateLimiter, validateAdminLogin, async (req, res) => 
                  LIMIT 1`,
                 [admin.id]
             );
-        } catch (_) {
-            // admin_roles table doesn't exist yet — migration still pending
+        } catch (err) {
+            // admin_roles table doesn't exist yet — migration still pending, or other error
+            console.error('Error fetching admin roles:', err.message);
             roleResult = { rows: [] };
         }
 
@@ -101,8 +103,9 @@ router.post('/login', loginRateLimiter, validateAdminLogin, async (req, res) => 
                      ON CONFLICT (admin_id, owner_id) DO NOTHING`,
                     [admin.id, admin.email, admin.company_name || admin.email]
                 );
-            } catch (_) {
+            } catch (err) {
                 // Table still doesn't exist — fall through with owner defaults
+                console.error('Error creating admin role:', err.message);
             }
         }
 
@@ -121,8 +124,9 @@ router.post('/login', loginRateLimiter, validateAdminLogin, async (req, res) => 
                 owner_id = refetch.rows[0].owner_id;
                 role     = refetch.rows[0].role;
             }
-        } catch (_) {
+        } catch (err) {
             // Still not ready — use defaults (owner_id = admin.id, role = 'owner')
+            console.error('Error refetching admin roles:', err.message);
         }
         const token = signToken(admin.id, owner_id);
 

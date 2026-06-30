@@ -30,9 +30,10 @@ module.exports = async (req, res, next) => {
         }
 
         // 2. Verify JWT signature
+        const secret = process.env.NEXT_PUBLIC_SUPABASE_URL_SUPABASE_JWT_SECRET || 'fallback-secret-for-development-only-change-in-production';
         const decoded = jwt.verify(
             token,
-            process.env.NEXT_PUBLIC_SUPABASE_URL_SUPABASE_JWT_SECRET
+            secret
         );
 
         // Support both old tokens (only adminId) and new tokens (adminId + ownerId)
