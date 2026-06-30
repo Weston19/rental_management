@@ -197,7 +197,13 @@ router.post('/templates/reset', requireOwner, async (req, res) => {
 router.get('/payment-providers', async (req, res) => {
     try {
         const paystackCircuit = require('../circuits/paystack-circuit');
-        const banksResult = await paystackCircuit.listBanks('ke');
+        let banksResult;
+        try {
+            banksResult = await paystackCircuit.listBanks('ke');
+        } catch (e) {
+            console.error('Error fetching banks from Paystack:', e);
+            banksResult = { data: [] };
+        }
         
         // Kenyan mobile money providers (common ones supported by Paystack)
         const mobileMoneyProviders = [
@@ -209,7 +215,7 @@ router.get('/payment-providers', async (req, res) => {
         ];
         
         // Kenyan banks from Paystack
-        const kenyanBanks = banksResult.data ? banksResult.data.map(bank => ({
+        const kenyanBanks = (banksResult && banksResult.data) ? banksResult.data.map(bank => ({
             code: bank.code,
             name: bank.name
         })) : [];
