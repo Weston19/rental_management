@@ -832,64 +832,7 @@
             msg.textContent = 'Connection error. Please try again.';
         }
     }
-// ========== MAKE PAYMENT (STK Push) ==========
-async function initiatePayment() {
-    const type = document.querySelector('input[name="payType"]:checked').value;
-    const amount = parseFloat(document.getElementById('payAmount').value);
-    const phone = document.getElementById('payPhone').value.trim();
-    const msg = document.getElementById('payMsg');
-    
-    if (!amount || amount <= 0) {
-        msg.textContent = 'Please enter a valid amount';
-        return;
-    }
-    if (!phone) {
-        msg.textContent = 'Please enter phone number (e.g., 254712345678)';
-        return;
-    }
-    
-    msg.textContent = '';
-    
-    // Get tenant account number
-    const accountNumber = tenantData?.account_number || tenantData?.house_no || 'RENTPAY';
-    let accountRef = accountNumber;
-    
-    // Add prefix based on payment type
-    if (type === 'deposit') {
-        accountRef = 'D' + accountNumber;
-    } else if (type === 'penalty') {
-        accountRef = 'P' + accountNumber;
-    }
-    
-    try {
-        const response = await fetch(`${API_URL}/../mpesa/stkpush`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${tenantToken}`
-            },
-            body: JSON.stringify({
-                phone_number: phone,
-                amount: amount,
-                account_reference: accountRef,
-                transaction_desc: `${type} payment for ${tenantData?.first_name || ''} ${tenantData?.last_name || ''}`
-            })
-        });
-        
-        const result = await response.json();
-        
-        if (response.ok && result.success) {
-            alert(`✅ STK Push sent to ${phone}\nAmount: KES ${formatNumber(amount)}\nType: ${type}\n\nCheck your phone for the M-Pesa prompt.`);
-            closePayModal();
-            // Reload dashboard after payment
-            setTimeout(loadDashboard, 5000);
-        } else {
-            msg.textContent = result.error || 'Payment failed';
-        }
-    } catch (error) {
-        msg.textContent = 'Connection error. Please try again.';
-    }
-}
+
     // ========== LOGOUT ==========
     function logout() {
         localStorage.removeItem('tenantToken');
