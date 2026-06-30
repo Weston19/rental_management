@@ -16,6 +16,10 @@
       "dest": "api/admin.js"
     },
     {
+      "src": "^/api/tenant-portal(.*)",
+      "dest": "api/tenant.js"
+    },
+    {
       "src": "^/(api/.*|uploads/.*)",
       "dest": "api/admin.js"
     },
