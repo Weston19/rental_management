@@ -17,6 +17,30 @@ const router = express.Router();
 const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
 const APP_BASE_URL = process.env.BASE_URL || process.env.APP_BASE_URL;
 
+// Helper to normalize account name for comparison
+function normalizeAccountName(name) {
+    if (!name) return '';
+    return name.toLowerCase().replace(/[^a-z0-9]/g, '').trim();
+}
+
+// Helper to check name match (allow reasonable variations)
+function isNameMatch(resolvedName, providedName) {
+    if (!resolvedName || !providedName) return false;
+    
+    const normalizedResolved = normalizeAccountName(resolvedName);
+    const normalizedProvided = normalizeAccountName(providedName);
+    
+    // Exact match
+    if (normalizedResolved === normalizedProvided) return true;
+    
+    // Check if one is substring of the other (handles middle initials etc.)
+    if (normalizedResolved.includes(normalizedProvided) || normalizedProvided.includes(normalizedResolved)) {
+        return true;
+    }
+    
+    return false;
+}
+
 // =============================================================
 // 1. RESOLVE BANK ACCOUNT
 // =============================================================
@@ -66,15 +90,24 @@ router.get('/banks', auth, async (req, res) => {
 });
 
 // =============================================================
-// 3. CREATE SUBACCOUNT (ONBOARD AGENCY)
+// 3. CREATE SUBACCOUNT (ONBOARD AGENCY) - WITH NAME MATCH CHECK
 // =============================================================
 router.post('/create-subaccount', auth, async (req, res) => {
     try {
-        const { account_number, bank_code, business_name, percentage_charge = 100 } = req.body;
+        const { account_number, bank_code, business_name, percentage_charge = 100, account_name: provided_account_name } = req.body;
 
         // First resolve the bank account
         const resolveResult = await resolveBankCircuit.fire(account_number, bank_code);
-        const account_name = resolveResult.data.account_name;
+        const resolved_account_name = resolveResult.data.account_name;
+
+        // Check if account name matches what was provided
+        if (provided_account_name && !isNameMatch(resolved_account_name, provided_account_name)) {
+            return res.status(400).json({ 
+                success: false, 
+                error: `Account name mismatch. The account is registered as "${resolved_account_name}"`,
+                resolved_name: resolved_account_name
+            });
+        }
 
         // Create Paystack subaccount
         const subaccountResult = await createSubaccountCircuit.fire(
@@ -95,7 +128,7 @@ router.post('/create-subaccount', auth, async (req, res) => {
                  paystack_account_name = $4,
                  payment_configured = TRUE
              WHERE id = $5`,
-            [subaccount_code, bank_code, account_number, account_name, req.ownerId]
+            [subaccount_code, bank_code, account_number, resolved_account_name, req.ownerId]
         );
 
         res.json({ 
@@ -103,7 +136,7 @@ router.post('/create-subaccount', auth, async (req, res) => {
             message: 'Subaccount created successfully',
             data: {
                 subaccount_code,
-                account_name
+                account_name: resolved_account_name
             }
         });
     } catch (error) {
@@ -116,7 +149,7 @@ router.post('/create-subaccount', auth, async (req, res) => {
 });
 
 // =============================================================
-// 4. INITIALIZE PAYMENT
+// 4. INITIALIZE PAYMENT - WITH REFERENCE GENERATION & BEARER: SUBACCOUNT
 // =============================================================
 router.post('/initialize-payment', auth, async (req, res) => {
     try {
@@ -163,10 +196,11 @@ router.post('/initialize-payment', auth, async (req, res) => {
             });
         }
 
-        // Generate unique reference
-        const reference = `rent_${req.ownerId}_${tenant_id}_${Date.now()}`;
+        // Generate unique reference (rent_{ownerId}_{tenantId}_{uuid})
+        const cryptoRandom = crypto.randomUUID();
+        const reference = `rent_${req.ownerId}_${tenant_id}_${cryptoRandom}`;
 
-        // Initialize transaction with subaccount
+        // Initialize transaction with subaccount AND bearer: subaccount
         const result = await initializeTransactionCircuit.fire(
             tenantEmail,
             amount,
@@ -221,29 +255,41 @@ router.get('/verify/:reference', auth, async (req, res) => {
 });
 
 // =============================================================
-// 6. PAYSTACK WEBHOOK ENDPOINT (SERVER-TO-SERVER)
+// 6. PAYSTACK WEBHOOK ENDPOINT (SERVER-TO-SERVER) - WITH RAW BODY & SIGNATURE CHECK
 // =============================================================
 router.post('/webhook', async (req, res) => {
     try {
-        // Step 1: Verify signature FIRST
+        const rawBody = req.body; // Now raw buffer because of express.raw()
+        let event;
+        
+        try {
+            event = JSON.parse(rawBody.toString());
+        } catch (parseError) {
+            console.error('❌ Invalid JSON in webhook');
+            return res.sendStatus(400);
+        }
+
+        // Step 1: VERIFY SIGNATURE FIRST, BEFORE ANYTHING ELSE
         if (PAYSTACK_SECRET_KEY) {
             const hash = crypto
                 .createHmac('sha512', PAYSTACK_SECRET_KEY)
-                .update(JSON.stringify(req.body))
+                .update(rawBody) // Use RAW buffer, NOT stringified JSON!
                 .digest('hex');
 
             if (hash !== req.headers['x-paystack-signature']) {
                 console.log('❌ Invalid Paystack signature');
                 return res.sendStatus(400);
             }
+        } else {
+            console.warn('⚠️ Paystack secret key not configured - skipping signature verification');
         }
 
-        // Step 2: ACKNOWLEDGE IMMEDIATELY with 200 OK
+        // Step 2: ACKNOWLEDGE IMMEDIATELY WITH 200 OK
         res.sendStatus(200);
 
-        // Step 3: Queue processing asynchronously
-        console.log('📥 Received Paystack webhook:', req.body.event);
-        await queuePaystackWebhook(req.body);
+        // Step 3: QUEUE PROCESSING ASYNCHRONOUSLY
+        console.log('📥 Received Paystack webhook:', event.event);
+        await queuePaystackWebhook(event);
 
     } catch (error) {
         console.error('❌ Paystack webhook error:', error);
@@ -261,7 +307,7 @@ router.get('/callback', async (req, res) => {
         res.json({ 
             success: true, 
             reference: reference,
-            message: 'Payment received. Processing in background.'
+            message: 'Payment received. Processing in background.' 
         });
     } catch (error) {
         console.error('❌ Paystack callback error:', error);

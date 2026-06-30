@@ -1,3 +1,5 @@
+// Fix Supabase self-signed certificate issue
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
@@ -31,6 +33,11 @@ function waitForMigration(req, res, next) {
 
 // ── Middleware ────────────────────────────────────────────────────────────────
 app.use(cors());
+
+// RAW BODY for Paystack webhook (BEFORE any JSON parsing)
+app.use('/api/paystack/webhook', express.raw({ type: 'application/json' }));
+
+// Regular JSON parsing for other routes
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/admin', express.static(path.join(__dirname, '../../public/admin')));
