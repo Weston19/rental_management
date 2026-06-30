@@ -1,11 +1,12 @@
 const { Pool } = require('pg');
 require('dotenv').config();
 
+// Supabase requires special SSL handling
 const pool = new Pool({
     connectionString: process.env.NEXT_PUBLIC_SUPABASE_URL_POSTGRES_URL,
-    ssl: process.env.NODE_ENV === 'production' 
-        ? { rejectUnauthorized: true } 
-        : { rejectUnauthorized: false }
+    ssl: {
+        rejectUnauthorized: false
+    }
 });
 
 pool.connect((err, client, release) => {
