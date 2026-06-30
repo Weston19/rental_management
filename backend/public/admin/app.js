@@ -3084,8 +3084,21 @@ window.editTenant = async (id) => {
 
 window.deleteTenant = async (id) => {
     if(confirm('Vacate this tenant? The room will become available.')){
-        await apiCall(`/tenants/${id}`, { method: 'DELETE' });
-        renderTenants();
+        try {
+            const result = await apiCall(`/tenants/${id}`, { method: 'DELETE' });
+            if (result?.error) {
+                alert('❌ Error: ' + result.error);
+            } else {
+                alert('✅ Tenant vacated successfully!');
+            }
+            await renderTenants();
+            await renderProperties();
+            await renderRooms();
+            await renderDashboard();
+        } catch (error) {
+            console.error(error);
+            alert('❌ Error deleting tenant');
+        }
     }
 };
 
