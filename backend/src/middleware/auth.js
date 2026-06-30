@@ -30,7 +30,10 @@ module.exports = async (req, res, next) => {
         }
 
         // 2. Verify JWT signature
-        const secret = process.env.NEXT_PUBLIC_SUPABASE_URL_SUPABASE_JWT_SECRET || 'fallback-secret-for-development-only-change-in-production';
+        const secret = process.env.JWT_SECRET || process.env.NEXT_PUBLIC_SUPABASE_URL_SUPABASE_JWT_SECRET;
+        if (!secret) {
+            return res.status(500).json({ error: 'Server configuration error: JWT secret is missing.' });
+        }
         const decoded = jwt.verify(
             token,
             secret
