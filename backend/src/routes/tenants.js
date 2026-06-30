@@ -26,7 +26,13 @@ const toNullIfEmpty = (value) => {
 
 // GET all tenants (including vacated) — scoped to owner
 router.get('/all', async (req, res) => {
+    const cacheKey = `all_tenants:${req.ownerId}`;
     try {
+        const cached = await redis.get(cacheKey);
+        if (cached) {
+            return res.json(typeof cached === 'string' ? JSON.parse(cached) : cached);
+        }
+
         const result = await pool.query(`
             SELECT t.*, p.name AS property_name, r.house_no, r.rent, r.status AS room_status
             FROM tenants t
@@ -35,6 +41,8 @@ router.get('/all', async (req, res) => {
             WHERE t.owner_id = $1
             ORDER BY t.id DESC
         `, [req.ownerId]);
+        
+        await redis.set(cacheKey, JSON.stringify(result.rows), { ex: 3600 });
         res.json(result.rows);
     } catch (error) {
         console.error(error);
@@ -44,7 +52,13 @@ router.get('/all', async (req, res) => {
 
 // GET active tenants only
 router.get('/', async (req, res) => {
+    const cacheKey = `active_tenants:${req.ownerId}`;
     try {
+        const cached = await redis.get(cacheKey);
+        if (cached) {
+            return res.json(typeof cached === 'string' ? JSON.parse(cached) : cached);
+        }
+
         const result = await pool.query(`
             SELECT t.*, p.name AS property_name, r.house_no, r.rent, r.status AS room_status
             FROM tenants t
@@ -53,6 +67,8 @@ router.get('/', async (req, res) => {
             WHERE t.owner_id = $1 AND t.is_deleted = FALSE
             ORDER BY t.id DESC
         `, [req.ownerId]);
+        
+        await redis.set(cacheKey, JSON.stringify(result.rows), { ex: 3600 });
         res.json(result.rows);
     } catch (error) {
         console.error(error);
@@ -62,7 +78,13 @@ router.get('/', async (req, res) => {
 
 // GET single tenant — must belong to this owner
 router.get('/:id', async (req, res) => {
+    const cacheKey = `tenant:${req.ownerId}:${req.params.id}`;
     try {
+        const cached = await redis.get(cacheKey);
+        if (cached) {
+            return res.json(typeof cached === 'string' ? JSON.parse(cached) : cached);
+        }
+
         const result = await pool.query(`
             SELECT t.*, p.name AS property_name, p.location AS property_location,
                    r.house_no, r.rent, r.deposit, r.room_type, r.floor_number, r.status AS room_status
@@ -73,6 +95,8 @@ router.get('/:id', async (req, res) => {
         `, [req.params.id, req.ownerId]);
 
         if (result.rows.length === 0) return res.status(404).json({ error: 'Tenant not found' });
+        
+        await redis.set(cacheKey, JSON.stringify(result.rows[0]), { ex: 3600 });
         res.json(result.rows[0]);
     } catch (error) {
         console.error(error);
@@ -145,6 +169,11 @@ router.post('/', async (req, res) => {
         await updatePropertyCounts(property_id);
         await redis.del(`all_properties:${req.ownerId}`);
         await redis.del(`property:${req.ownerId}:${property_id}`);
+        await redis.del(`all_tenants:${req.ownerId}`);
+        await redis.del(`active_tenants:${req.ownerId}`);
+        await redis.del(`all_rooms:${req.ownerId}`);
+        await redis.del(`rooms_by_property:${req.ownerId}:${property_id}`);
+        await redis.del(`available_rooms:${req.ownerId}:${property_id}`);
 
         res.json(result.rows[0]);
     } catch (error) {
@@ -217,6 +246,18 @@ router.put('/:id', async (req, res) => {
         }
 
         await redis.del(`all_properties:${req.ownerId}`);
+        await redis.del(`all_tenants:${req.ownerId}`);
+        await redis.del(`active_tenants:${req.ownerId}`);
+        await redis.del(`tenant:${req.ownerId}:${req.params.id}`);
+        await redis.del(`all_rooms:${req.ownerId}`);
+        if (oldTenant.rows[0].property_id) {
+            await redis.del(`rooms_by_property:${req.ownerId}:${oldTenant.rows[0].property_id}`);
+            await redis.del(`available_rooms:${req.ownerId}:${oldTenant.rows[0].property_id}`);
+        }
+        if (property_id) {
+            await redis.del(`rooms_by_property:${req.ownerId}:${property_id}`);
+            await redis.del(`available_rooms:${req.ownerId}:${property_id}`);
+        }
         res.json(result.rows[0]);
     } catch (error) {
         console.error(error);
@@ -238,6 +279,12 @@ router.delete('/:id', requireOwner, async (req, res) => {
             await updatePropertyCounts(tenant.rows[0].property_id);
             await redis.del(`all_properties:${req.ownerId}`);
             await redis.del(`property:${req.ownerId}:${tenant.rows[0].property_id}`);
+            await redis.del(`all_tenants:${req.ownerId}`);
+            await redis.del(`active_tenants:${req.ownerId}`);
+            await redis.del(`tenant:${req.ownerId}:${req.params.id}`);
+            await redis.del(`all_rooms:${req.ownerId}`);
+            await redis.del(`rooms_by_property:${req.ownerId}:${tenant.rows[0].property_id}`);
+            await redis.del(`available_rooms:${req.ownerId}:${tenant.rows[0].property_id}`);
         }
 
         res.json({ message: 'Tenant vacated successfully' });

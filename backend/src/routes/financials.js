@@ -1,6 +1,7 @@
 const express = require('express');
 const pool = require('../utils/db');
 const auth = require('../middleware/auth');
+const redis = require('../utils/redis');
 const bcrypt = require('bcrypt');
 const { blockViewerWrites, requireOwner } = require('../middleware/requireRole');
 
@@ -21,8 +22,14 @@ async function verifyPassword(adminId, password) {
 
 // GET all summaries — scoped to owner
 router.get('/summaries', async (req, res) => {
+    const { property_id, month } = req.query;
+    const cacheKey = `financial_summaries:${req.ownerId}:${property_id || 'all'}:${month || 'all'}`;
     try {
-        const { property_id, month } = req.query;
+        const cached = await redis.get(cacheKey);
+        if (cached) {
+            return res.json(typeof cached === 'string' ? JSON.parse(cached) : cached);
+        }
+
         let query = `
             SELECT fs.*, p.name AS property_name, p.landlord_name
             FROM financial_summaries fs
@@ -43,6 +50,8 @@ router.get('/summaries', async (req, res) => {
             summary.rooms    = rooms.rows;
             summary.expenses = expenses.rows;
         }
+
+        await redis.set(cacheKey, JSON.stringify(result.rows), { ex: 3600 });
         res.json(result.rows);
     } catch (error) {
         console.error(error);
@@ -52,7 +61,13 @@ router.get('/summaries', async (req, res) => {
 
 // GET single summary — ownership enforced
 router.get('/summaries/:id', async (req, res) => {
+    const cacheKey = `financial_summary:${req.ownerId}:${req.params.id}`;
     try {
+        const cached = await redis.get(cacheKey);
+        if (cached) {
+            return res.json(typeof cached === 'string' ? JSON.parse(cached) : cached);
+        }
+
         const summaryResult = await pool.query(`
             SELECT fs.*, p.name AS property_name, p.landlord_name
             FROM financial_summaries fs
@@ -64,7 +79,10 @@ router.get('/summaries/:id', async (req, res) => {
 
         const rooms    = await pool.query('SELECT * FROM financial_summary_rooms    WHERE summary_id = $1 ORDER BY house_no',  [req.params.id]);
         const expenses = await pool.query('SELECT * FROM financial_summary_expenses WHERE summary_id = $1 ORDER BY category', [req.params.id]);
-        res.json({ ...summaryResult.rows[0], rooms: rooms.rows, expenses: expenses.rows });
+        const data = { ...summaryResult.rows[0], rooms: rooms.rows, expenses: expenses.rows };
+        
+        await redis.set(cacheKey, JSON.stringify(data), { ex: 3600 });
+        res.json(data);
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Server error' });
@@ -157,6 +175,9 @@ router.post('/summaries/generate', async (req, res) => {
             );
         }
 
+        // Invalidate all summary and tenant list caches
+        await redis.del(`financial_summaries:${req.ownerId}:*`);
+        await redis.del(`financial_tenant_list:${req.ownerId}:*`);
         res.json(summaryResult.rows[0]);
     } catch (error) {
         console.error(error);
@@ -215,6 +236,10 @@ router.put('/summaries/:id', async (req, res) => {
             }
         }
 
+        // Invalidate all summary and tenant list caches
+        await redis.del(`financial_summaries:${req.ownerId}:*`);
+        await redis.del(`financial_summary:${req.ownerId}:${req.params.id}`);
+        await redis.del(`financial_tenant_list:${req.ownerId}:*`);
         res.json(result.rows[0]);
     } catch (error) {
         console.error(error);
@@ -294,6 +319,10 @@ router.post('/expenses', async (req, res) => {
             [property_id, room_id || null, amount, category,
              expense_date, status || 'finished', description, req.adminId, req.ownerId]
         );
+
+        // Invalidate all expense and tenant list caches
+        await redis.del(`financial_expenses:${req.ownerId}:*`);
+        await redis.del(`financial_tenant_list:${req.ownerId}:*`);
         res.json(result.rows[0]);
     } catch (error) {
         console.error(error);
@@ -337,6 +366,9 @@ router.delete('/expenses/:id', requireOwner, async (req, res) => {
         );
         if (r.rows.length === 0) return res.status(404).json({ error: 'Expense not found' });
         await pool.query('DELETE FROM expenses WHERE id = $1', [req.params.id]);
+        // Invalidate all expense and tenant list caches
+        await redis.del(`financial_expenses:${req.ownerId}:*`);
+        await redis.del(`financial_tenant_list:${req.ownerId}:*`);
         res.json({ message: 'Expense deleted successfully' });
     } catch (error) {
         console.error(error);
@@ -356,8 +388,14 @@ router.get('/expense-categories', async (req, res) => {
 
 // GET tenant list report — scoped to owner
 router.get('/tenant-list', async (req, res) => {
+    const { property_id, month, year } = req.query;
+    const cacheKey = `financial_tenant_list:${req.ownerId}:${property_id || 'all'}:${month || 'all'}:${year || 'all'}`;
     try {
-        const { property_id, month, year } = req.query;
+        const cached = await redis.get(cacheKey);
+        if (cached) {
+            return res.json(typeof cached === 'string' ? JSON.parse(cached) : cached);
+        }
+
         const now = new Date();
         const targetMonth = (year && month)
             ? new Date(parseInt(year), parseInt(month) - 1, 1)
@@ -418,6 +456,8 @@ router.get('/tenant-list', async (req, res) => {
                 has_tenant:      row.tenant_id !== null
             };
         });
+
+        await redis.set(cacheKey, JSON.stringify(processed), { ex: 3600 });
         res.json(processed);
     } catch (error) {
         console.error(error);

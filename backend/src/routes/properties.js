@@ -241,6 +241,9 @@ router.post('/:propertyId/rooms', async (req, res) => {
         await updatePropertyCounts(propertyId);
         await redis.del(`all_properties:${req.ownerId}`);
         await redis.del(`property:${req.ownerId}:${propertyId}`);
+        await redis.del(`all_rooms:${req.ownerId}`);
+        await redis.del(`rooms_by_property:${req.ownerId}:${propertyId}`);
+        await redis.del(`available_rooms:${req.ownerId}:${propertyId}`);
         res.json(result.rows[0]);
     } catch (error) {
         console.error(error);
@@ -303,6 +306,9 @@ router.put('/room/:roomId', async (req, res) => {
         await updatePropertyCounts(propertyId);
         await redis.del(`all_properties:${req.ownerId}`);
         await redis.del(`property:${req.ownerId}:${propertyId}`);
+        await redis.del(`all_rooms:${req.ownerId}`);
+        await redis.del(`rooms_by_property:${req.ownerId}:${propertyId}`);
+        await redis.del(`available_rooms:${req.ownerId}:${propertyId}`);
         res.json(result.rows[0]);
     } catch (error) {
         console.error(error);
@@ -334,6 +340,9 @@ router.delete('/room/:roomId', requireOwner, async (req, res) => {
         await updatePropertyCounts(propertyId);
         await redis.del(`all_properties:${req.ownerId}`);
         await redis.del(`property:${req.ownerId}:${propertyId}`);
+        await redis.del(`all_rooms:${req.ownerId}`);
+        await redis.del(`rooms_by_property:${req.ownerId}:${propertyId}`);
+        await redis.del(`available_rooms:${req.ownerId}:${propertyId}`);
         res.json({ message: 'Room deleted successfully' });
     } catch (error) {
         console.error(error);

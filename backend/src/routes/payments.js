@@ -1,6 +1,7 @@
 const express = require('express');
 const pool = require('../utils/db');
 const auth = require('../middleware/auth');
+const redis = require('../utils/redis');
 const bcrypt = require('bcrypt');
 const { blockViewerWrites, requireOwner } = require('../middleware/requireRole');
 
@@ -83,7 +84,13 @@ async function assertPaymentOwnership(paymentId, ownerId) {
 
 // GET all payments — scoped to owner
 router.get('/', async (req, res) => {
+    const cacheKey = `all_payments:${req.ownerId}`;
     try {
+        const cached = await redis.get(cacheKey);
+        if (cached) {
+            return res.json(typeof cached === 'string' ? JSON.parse(cached) : cached);
+        }
+
         const result = await pool.query(`
             SELECT p.*,
                    t.first_name, t.last_name, t.phone,
@@ -96,6 +103,8 @@ router.get('/', async (req, res) => {
             WHERE p.owner_id = $1
             ORDER BY p.payment_date DESC, p.id DESC
         `, [req.ownerId]);
+        
+        await redis.set(cacheKey, JSON.stringify(result.rows), { ex: 3600 });
         res.json(result.rows);
     } catch (error) {
         console.error(error);
@@ -105,7 +114,13 @@ router.get('/', async (req, res) => {
 
 // GET single payment — ownership enforced
 router.get('/:id', async (req, res) => {
+    const cacheKey = `payment:${req.ownerId}:${req.params.id}`;
     try {
+        const cached = await redis.get(cacheKey);
+        if (cached) {
+            return res.json(typeof cached === 'string' ? JSON.parse(cached) : cached);
+        }
+
         const result = await pool.query(`
             SELECT p.*,
                    t.first_name, t.last_name, t.phone,
@@ -116,7 +131,10 @@ router.get('/:id', async (req, res) => {
             LEFT JOIN properties pr ON t.property_id = pr.id
             WHERE p.id = $1 AND p.owner_id = $2
         `, [req.params.id, req.ownerId]);
+        
         if (result.rows.length === 0) return res.status(404).json({ error: 'Payment not found' });
+        
+        await redis.set(cacheKey, JSON.stringify(result.rows[0]), { ex: 3600 });
         res.json(result.rows[0]);
     } catch (error) {
         console.error(error);
@@ -126,7 +144,13 @@ router.get('/:id', async (req, res) => {
 
 // GET payments by tenant — ownership enforced
 router.get('/tenant/:tenantId', async (req, res) => {
+    const cacheKey = `tenant_payments:${req.ownerId}:${req.params.tenantId}`;
     try {
+        const cached = await redis.get(cacheKey);
+        if (cached) {
+            return res.json(typeof cached === 'string' ? JSON.parse(cached) : cached);
+        }
+
         const tenantCheck = await pool.query(
             'SELECT id FROM tenants WHERE id = $1 AND owner_id = $2',
             [req.params.tenantId, req.ownerId]
@@ -137,6 +161,8 @@ router.get('/tenant/:tenantId', async (req, res) => {
             'SELECT * FROM payments WHERE tenant_id = $1 AND owner_id = $2 ORDER BY payment_date DESC',
             [req.params.tenantId, req.ownerId]
         );
+        
+        await redis.set(cacheKey, JSON.stringify(result.rows), { ex: 3600 });
         res.json(result.rows);
     } catch (error) {
         console.error(error);
@@ -248,6 +274,10 @@ router.delete('/:id', requireOwner, async (req, res) => {
 
         await pool.query('DELETE FROM payments WHERE id = $1', [req.params.id]);
         await updateTenantBalance(payment.tenant_id);
+        await redis.del(`all_payments:${req.ownerId}`);
+        await redis.del(`payment:${req.ownerId}:${req.params.id}`);
+        await redis.del(`tenant_payments:${req.ownerId}:${payment.tenant_id}`);
+        await redis.del(`all_bills:${req.ownerId}`);
         res.json({ message: 'Payment deleted successfully' });
     } catch (error) {
         console.error(error);

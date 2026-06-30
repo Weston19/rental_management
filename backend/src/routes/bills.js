@@ -1,6 +1,7 @@
 const express = require('express');
 const pool = require('../utils/db');
 const auth = require('../middleware/auth');
+const redis = require('../utils/redis');
 const { blockViewerWrites, requireOwner } = require('../middleware/requireRole');
 
 const router = express.Router();
@@ -44,7 +45,13 @@ async function updateBillStatus(billId) {
 
 // GET all bills — scoped to owner
 router.get('/', async (req, res) => {
+    const cacheKey = `all_bills:${req.ownerId}`;
     try {
+        const cached = await redis.get(cacheKey);
+        if (cached) {
+            return res.json(typeof cached === 'string' ? JSON.parse(cached) : cached);
+        }
+
         const result = await pool.query(`
             SELECT b.*,
                    t.first_name, t.last_name, t.phone,
@@ -58,6 +65,8 @@ router.get('/', async (req, res) => {
               AND (t.is_deleted = FALSE OR t.is_deleted IS NULL)
             ORDER BY b.bill_month DESC, b.id DESC
         `, [req.ownerId]);
+        
+        await redis.set(cacheKey, JSON.stringify(result.rows), { ex: 3600 });
         res.json(result.rows);
     } catch (error) {
         console.error(error);
@@ -67,7 +76,13 @@ router.get('/', async (req, res) => {
 
 // GET single bill — must belong to this owner
 router.get('/:id', async (req, res) => {
+    const cacheKey = `bill:${req.ownerId}:${req.params.id}`;
     try {
+        const cached = await redis.get(cacheKey);
+        if (cached) {
+            return res.json(typeof cached === 'string' ? JSON.parse(cached) : cached);
+        }
+
         const billResult = await pool.query(`
             SELECT b.*,
                    t.first_name, t.last_name, t.phone,
@@ -86,7 +101,10 @@ router.get('/:id', async (req, res) => {
             'SELECT * FROM bill_items WHERE bill_id = $1 ORDER BY id',
             [req.params.id]
         );
-        res.json({ ...billResult.rows[0], items: itemsResult.rows });
+        const billData = { ...billResult.rows[0], items: itemsResult.rows };
+        
+        await redis.set(cacheKey, JSON.stringify(billData), { ex: 3600 });
+        res.json(billData);
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Server error' });
@@ -140,6 +158,8 @@ router.post('/', async (req, res) => {
             }
         }
 
+        await redis.del(`all_bills:${req.ownerId}`);
+        if (billId) await redis.del(`bill:${req.ownerId}:${billId}`);
         res.json({ success: true, billId });
     } catch (error) {
         console.error(error);
@@ -172,6 +192,8 @@ router.put('/:id', async (req, res) => {
                 );
             }
         }
+        await redis.del(`all_bills:${req.ownerId}`);
+        await redis.del(`bill:${req.ownerId}:${req.params.id}`);
         res.json({ message: 'Bill updated successfully' });
     } catch (error) {
         console.error(error);
@@ -191,6 +213,8 @@ router.delete('/:id', requireOwner, async (req, res) => {
             return res.status(400).json({ error: 'Cannot delete bill with payments applied' });
         }
         await pool.query('DELETE FROM bills WHERE id = $1', [req.params.id]);
+        await redis.del(`all_bills:${req.ownerId}`);
+        await redis.del(`bill:${req.ownerId}:${req.params.id}`);
         res.json({ message: 'Bill deleted successfully' });
     } catch (error) {
         console.error(error);
@@ -233,6 +257,7 @@ router.post('/auto-generate', async (req, res) => {
             generated++;
         }
 
+        await redis.del(`all_bills:${req.ownerId}`);
         res.json({ message: `Rent bills generated: ${generated}, Skipped: ${skipped}` });
     } catch (error) {
         console.error(error);
@@ -281,6 +306,7 @@ router.post('/bulk-property', async (req, res) => {
                 created++;
             }
         }
+        await redis.del(`all_bills:${req.ownerId}`);
         res.json({ message: `Bills created: ${created}, Updated: ${updated}` });
     } catch (error) {
         console.error(error);
@@ -326,6 +352,7 @@ router.post('/award-penalties', async (req, res) => {
             );
             awarded++;
         }
+        await redis.del(`all_bills:${req.ownerId}`);
         res.json({ message: `Penalties awarded: ${awarded}` });
     } catch (error) {
         console.error(error);
