@@ -335,13 +335,18 @@ async function renderDashboard() {
     
     if (allTenants) {
         for (const tenant of allTenants) {
-            const balanceResult = await apiCall(`/bills/tenant-balance/${tenant.id}`);
-            const balance = balanceResult?.balance || 0;
-            tenant.balance = balance;
-            if (balance > 0) {
-                arrearsTotal += balance;
-                tenantsWithArrears++;
-                arrearsList.push(tenant);
+            try {
+                const balanceResult = await apiCall(`/bills/tenant-balance/${tenant.id}`);
+                const balance = balanceResult?.balance || 0;
+                tenant.balance = balance;
+                if (balance > 0) {
+                    arrearsTotal += balance;
+                    tenantsWithArrears++;
+                    arrearsList.push(tenant);
+                }
+            } catch (error) {
+                console.error(`Error fetching balance for tenant ${tenant.id} in dashboard:`, error);
+                tenant.balance = 0;
             }
         }
     }
@@ -2607,8 +2612,13 @@ async function renderTenants() {
     
     // Calculate balance for each tenant
     for (const tenant of allTenants) {
-        const balanceResult = await apiCall(`/bills/tenant-balance/${tenant.id}`);
-        tenant.balance = balanceResult?.balance || 0;
+        try {
+            const balanceResult = await apiCall(`/bills/tenant-balance/${tenant.id}`);
+            tenant.balance = balanceResult?.balance || 0;
+        } catch (error) {
+            console.error(`Error fetching balance for tenant ${tenant.id}:`, error);
+            tenant.balance = 0;
+        }
     }
     
     let filteredTenants = allTenants.filter(t => !t.is_deleted);
