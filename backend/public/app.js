@@ -2090,6 +2090,7 @@ window.editProperty = async (id) => {
             <input type="text" id="editPropLocation" value="${escapeHtml(property.location)}" autocomplete="off">
             <label>Total Units</label>
             <input type="text" id="editPropTotalUnits" value="${property.total_units || 0}" readonly style="background-color:#f0f0f0;">
+            <input type="hidden" id="editPropBillingDay" value="${property.billing_day || 1}">
             <label>Penalty Amount (KES)</label>
             <input type="number" id="editPropPenalty" value="${property.penalty_amount || 0}" min="0">
             <label>Update Photo (leave blank to keep current)</label>
@@ -2125,6 +2126,7 @@ window.editProperty = async (id) => {
             const name        = document.getElementById('editPropName').value.trim();
             const landlord    = document.getElementById('editPropManager').value.trim();
             const location    = document.getElementById('editPropLocation').value.trim();
+            const billingDay  = parseInt(document.getElementById('editPropBillingDay').value) || 1;
             const penalty     = parseFloat(document.getElementById('editPropPenalty').value) || 0;
 
             if (!name || !landlord || !location) {
@@ -2145,6 +2147,7 @@ window.editProperty = async (id) => {
                     name,
                     landlord_name: landlord,
                     location,
+                    billing_day: billingDay,
                     penalty_amount: penalty,
                     image_url: imageUrl
                 })

@@ -117,10 +117,21 @@ router.put('/:id', async (req, res) => {
     const { name, location, landlord_name, billing_day, penalty_amount, image_url } = req.body;
 
     try {
+        // First, get the current property to keep existing values if not provided
+        const currentProp = await pool.query(
+            'SELECT * FROM properties WHERE id = $1 AND owner_id = $2',
+            [req.params.id, req.ownerId]
+        );
+        if (currentProp.rows.length === 0) {
+            return res.status(404).json({ error: 'Property not found' });
+        }
+
         const result = await pool.query(
             `UPDATE properties
              SET name = $1, location = $2, landlord_name = $3,
-                 billing_day = $4, penalty_amount = $5, image_url = $6
+                 billing_day = COALESCE($4, billing_day),
+                 penalty_amount = COALESCE($5, penalty_amount),
+                 image_url = $6
              WHERE id = $7 AND owner_id = $8
              RETURNING *`,
             [name, location, landlord_name, billing_day, penalty_amount, image_url, req.params.id, req.ownerId]
