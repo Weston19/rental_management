@@ -694,51 +694,50 @@
     }
 
     async function initiatePayment() {
-        const type = document.querySelector('input[name="payType"]:checked').value;
-        const amount = parseFloat(document.getElementById('payAmount').value);
-        const phone = document.getElementById('payPhone').value.trim();
-        const msg = document.getElementById('payMsg');
-        
-        if (!amount || amount <= 0) {
-            msg.textContent = 'Please enter a valid amount';
-            return;
-        }
-        if (!phone) {
-            msg.textContent = 'Please enter phone number (e.g., 254712345678)';
-            return;
-        }
-        
-        msg.textContent = '';
-        
-        try {
-            const response = await fetch(`${API_URL}/pay`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${tenantToken}`
-                },
-                body: JSON.stringify({
-                    tenant_id: tenantData.id,
-                    amount: amount,
-                    payment_type: type,
-                    phone_number: phone
-                })
-            });
-            
-            const result = await response.json();
-            
-            if (response.ok) {
-                alert(`✅ STK Push sent to ${phone}\nAmount: KES ${formatNumber(amount)}\nType: ${type}\n\nCheck your phone for the M-Pesa prompt.`);
-                closePayModal();
-                // Reload dashboard after payment
-                setTimeout(loadDashboard, 3000);
-            } else {
-                msg.textContent = result.error || 'Payment failed';
-            }
-        } catch (error) {
-            msg.textContent = 'Connection error. Please try again.';
-        }
+    const type = document.querySelector('input[name="payType"]:checked').value;
+    const amount = parseFloat(document.getElementById('payAmount').value);
+    const phone = document.getElementById('payPhone').value.trim();
+    const msg = document.getElementById('payMsg');
+    
+    if (!amount || amount <= 0) {
+        msg.textContent = 'Please enter a valid amount';
+        return;
     }
+    if (!phone) {
+        msg.textContent = 'Please enter phone number (e.g., 254712345678)';
+        return;
+    }
+    
+    msg.textContent = 'Initiating payment...';
+    
+    try {
+        const response = await fetch(`${API_URL}/pay`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${tenantToken}`
+            },
+            body: JSON.stringify({
+                tenant_id: tenantData.id,
+                amount: amount,
+                payment_type: type,
+                phone_number: phone
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok && result.success) {
+            // Redirect to Paystack's payment page
+            window.location.href = result.authorization_url;
+        } else {
+            msg.textContent = result.error || 'Payment failed';
+        }
+    } catch (error) {
+        console.error('Payment error:', error);
+        msg.textContent = 'Connection error. Please try again.';
+    }
+}
 
     // ========== CHANGE PASSWORD ==========
     async function changePassword() {

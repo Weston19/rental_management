@@ -350,7 +350,7 @@ router.put('/update-phone/:tenantId', tenantAuth, async (req, res) => {
 });
 
 // ========== INITIATE PAYMENT (Paystack) ==========
-const { initiateCharge } = require('../circuits/paystack-circuit');
+const { initializeTransaction } = require('../circuits/paystack-circuit');
 const crypto = require('crypto');
 
 router.post('/pay', tenantAuth, validatePayment, async (req, res) => {
@@ -378,24 +378,29 @@ router.post('/pay', tenantAuth, validatePayment, async (req, res) => {
             return res.status(400).json({ error: 'Agency payment not configured' });
         }
         
-        // Generate unique reference with ALL server-known IDs
+        // Generate unique reference with all server-known IDs
         const cryptoRandom = crypto.randomUUID();
         const reference = `rent_${tenant.owner_id}_${tenantId}_${cryptoRandom}`;
         
-        // Use Paystack's charge for M-Pesa/STK Push
-        const result = await initiateCharge({
-            email: email || tenant.email,
+        // Use Paystack's transaction initialize for redirect flow
+        const result = await initializeTransaction({
+            email: email || tenant.email || 'tenant@example.com',
             amount: amount,
             reference: reference,
-            phone: phone_number || tenant.phone,
-            channel: tenant.admin_payment_type === 'mobile money' ? 'mobile_money' : 'bank',
-            subaccount_code: tenant.paystack_subaccount_code
+            subaccount_code: tenant.paystack_subaccount_code,
+            metadata: {
+                tenant_id: tenantId,
+                owner_id: tenant.owner_id,
+                payment_type: payment_type,
+                phone_number: phone_number
+            }
         });
         
         res.json({
             success: true,
             message: 'Payment initiated successfully',
-            ...result
+            authorization_url: result.data.authorization_url,
+            reference: result.data.reference
         });
     } catch (error) {
         console.error('Payment initiation error:', error);
