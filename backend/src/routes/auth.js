@@ -12,7 +12,10 @@ const router = express.Router();
 
 // ─── Helper: sign a token with both adminId and ownerId ───────────────────────
 function signToken(adminId, ownerId) {
-    const secret = process.env.NEXT_PUBLIC_SUPABASE_URL_SUPABASE_JWT_SECRET || 'fallback-secret-for-development-only-change-in-production';
+    const secret = process.env.JWT_SECRET || process.env.NEXT_PUBLIC_SUPABASE_URL_SUPABASE_JWT_SECRET;
+    if (!secret) {
+        throw new Error('JWT_SECRET environment variable is missing');
+    }
     return jwt.sign(
         { adminId, ownerId },
         secret,

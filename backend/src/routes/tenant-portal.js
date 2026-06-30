@@ -98,9 +98,13 @@ router.post('/login', loginRateLimiter, validateTenantLogin, async (req, res) =>
         await pool.query('UPDATE tenants SET last_login = NOW() WHERE id = $1', [tenant.id]);
         
         // Generate token
+        const secret = process.env.JWT_SECRET || process.env.NEXT_PUBLIC_SUPABASE_URL_SUPABASE_JWT_SECRET;
+        if (!secret) {
+            return res.status(500).json({ error: 'JWT_SECRET environment variable is missing' });
+        }
         const token = jwt.sign(
             { tenantId: tenant.id, phone: tenant.phone },
-            process.env.NEXT_PUBLIC_SUPABASE_URL_SUPABASE_JWT_SECRET,
+            secret,
             { expiresIn: '7d' }
         );
         

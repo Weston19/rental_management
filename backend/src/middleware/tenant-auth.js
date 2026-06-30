@@ -14,7 +14,11 @@ module.exports = async (req, res, next) => {
             return res.status(401).json({ error: 'Token has been revoked.' });
         }
 
-        const decoded = jwt.verify(token, process.env.NEXT_PUBLIC_SUPABASE_URL_SUPABASE_JWT_SECRET);
+        const secret = process.env.JWT_SECRET || process.env.NEXT_PUBLIC_SUPABASE_URL_SUPABASE_JWT_SECRET;
+        if (!secret) {
+            return res.status(500).json({ error: 'JWT_SECRET environment variable is missing' });
+        }
+        const decoded = jwt.verify(token, secret);
         
         // Check if tenantId from token matches route param (if present)
         if (req.params.tenantId && String(req.params.tenantId) !== String(decoded.tenantId)) {
