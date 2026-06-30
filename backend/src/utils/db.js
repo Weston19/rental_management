@@ -3,9 +3,9 @@ require('dotenv').config();
 
 const pool = new Pool({
     connectionString: process.env.NEXT_PUBLIC_SUPABASE_URL_POSTGRES_URL,
-    ssl: {
-        rejectUnauthorized: true // ✅ ENABLED TLS VERIFICATION
-    }
+    ssl: process.env.NODE_ENV === 'production' 
+        ? { rejectUnauthorized: true } 
+        : { rejectUnauthorized: false }
 });
 
 pool.connect((err, client, release) => {
