@@ -419,17 +419,4 @@ router.post('/pay', tenantAuth, validatePayment, async (req, res) => {
     }
 });
 
-// ========== VERIFY PAYMENT (tenant-accessible) ==========
-router.get('/verify/:reference', tenantAuth, async (req, res) => {
-    const { reference } = req.params;
-    const { verifyTransaction } = require('../circuits/paystack-circuit');
-    try {
-        const result = await verifyTransaction(reference);
-        res.json({ success: true, data: result.data });
-    } catch (error) {
-        console.error('Verify error:', error.message);
-        res.status(500).json({ success: false, error: 'Could not verify payment' });
-    }
-});
-
 module.exports = router;
