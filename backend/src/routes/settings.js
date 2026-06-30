@@ -193,20 +193,31 @@ router.post('/templates/reset', requireOwner, async (req, res) => {
 // PAYMENT SETUP — scoped to owner
 // ─────────────────────────────────────────────────────────────────────────────
 
-// GET list of banks from Paystack
-router.get('/banks', async (req, res) => {
+// GET list of Kenyan banks and mobile money providers
+router.get('/payment-providers', async (req, res) => {
     try {
         const paystackCircuit = require('../circuits/paystack-circuit');
-        const banksResult = await paystackCircuit.listBanks();
-        if (!banksResult.status) {
-            return res.status(400).json({ error: 'Failed to fetch banks' });
-        }
-        // Filter for Nigerian banks only and simplify the response
-        const nigerianBanks = banksResult.data.filter(bank => bank.country === 'Nigeria').map(bank => ({
+        const banksResult = await paystackCircuit.listBanks('ke');
+        
+        // Kenyan mobile money providers (common ones supported by Paystack)
+        const mobileMoneyProviders = [
+            { code: 'MPESA', name: 'M-PESA' },
+            { code: 'MPESA_PAYBILL', name: 'M-PESA Paybill' },
+            { code: 'MPESA_TILL', name: 'M-PESA Till' },
+            { code: 'AIRTEL', name: 'Airtel Kenya' },
+            { code: 'TELKOM', name: 'Telkom Kenya' }
+        ];
+        
+        // Kenyan banks from Paystack
+        const kenyanBanks = banksResult.data ? banksResult.data.map(bank => ({
             code: bank.code,
             name: bank.name
-        }));
-        res.json(nigerianBanks);
+        })) : [];
+        
+        res.json({
+            banks: kenyanBanks,
+            mobileMoney: mobileMoneyProviders
+        });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Server error' });
@@ -217,7 +228,7 @@ router.get('/banks', async (req, res) => {
 router.get('/payment-setup', async (req, res) => {
     try {
         const result = await pool.query(
-            'SELECT paystack_subaccount_code, paystack_bank_code, paystack_account_number, paystack_account_name, payment_configured, company_name FROM admin WHERE id = $1',
+            'SELECT currency, payment_type, provider_code, provider_name, account_number, account_name, payment_configured, company_name FROM admin WHERE id = $1',
             [req.ownerId]
         );
         if (result.rows.length === 0) return res.status(404).json({ error: 'Admin not found' });
@@ -230,80 +241,26 @@ router.get('/payment-setup', async (req, res) => {
 
 // PUT update payment setup — owner only
 router.put('/payment-setup', requireOwner, async (req, res) => {
-    const { paystack_bank_code, paystack_account_number, paystack_account_name } = req.body;
+    const { currency, payment_type, provider_code, provider_name, account_number, account_name } = req.body;
     
-    if (!paystack_bank_code || !paystack_account_number || !paystack_account_name) {
+    if (!currency || !payment_type || !provider_code || !provider_name || !account_number || !account_name) {
         return res.status(400).json({ error: 'All payment fields are required' });
     }
     
     try {
-        // First, let's check if we have paystack circuit available
-        const paystackCircuit = require('../circuits/paystack-circuit');
-        
-        // Get company name
-        const adminResult = await pool.query(
-            'SELECT company_name FROM admin WHERE id = $1',
-            [req.ownerId]
-        );
-        const companyName = adminResult.rows[0].company_name || 'Rental Business';
-        
-        // Resolve account number with Paystack
-        const resolveResult = await paystackCircuit.resolveAccount({
-            account_number: paystack_account_number,
-            bank_code: paystack_bank_code
-        });
-        
-        if (!resolveResult.status) {
-            return res.status(400).json({ error: 'Failed to verify account: ' + (resolveResult.message || 'Unknown error') });
-        }
-        
-        // Create or update Paystack subaccount
-        let subaccountResult;
-        const existingResult = await pool.query(
-            'SELECT paystack_subaccount_code FROM admin WHERE id = $1',
-            [req.ownerId]
-        );
-        
-        if (existingResult.rows[0].paystack_subaccount_code) {
-            // Update existing subaccount
-            subaccountResult = await paystackCircuit.updateSubaccount({
-                subaccount_code: existingResult.rows[0].paystack_subaccount_code,
-                business_name: companyName,
-                settlement_bank: paystack_bank_code,
-                account_number: paystack_account_number,
-                percentage_charge: 0
-            });
-        } else {
-            // Create new subaccount
-            subaccountResult = await paystackCircuit.createSubaccount({
-                business_name: companyName,
-                settlement_bank: paystack_bank_code,
-                account_number: paystack_account_number,
-                percentage_charge: 0
-            });
-        }
-        
-        if (!subaccountResult.status) {
-            return res.status(400).json({ error: 'Failed to setup payment account: ' + (subaccountResult.message || 'Unknown error') });
-        }
-        
-        // Update admin table
+        // Update admin table - no subaccount creation anymore
         const updateResult = await pool.query(
             `UPDATE admin 
-             SET paystack_subaccount_code = $1, 
-                 paystack_bank_code = $2, 
-                 paystack_account_number = $3, 
-                 paystack_account_name = $4, 
+             SET currency = $1, 
+                 payment_type = $2, 
+                 provider_code = $3, 
+                 provider_name = $4, 
+                 account_number = $5, 
+                 account_name = $6, 
                  payment_configured = TRUE 
-             WHERE id = $5 
-             RETURNING paystack_subaccount_code, paystack_bank_code, paystack_account_number, paystack_account_name, payment_configured`,
-            [
-                subaccountResult.data.subaccount_code,
-                paystack_bank_code,
-                paystack_account_number,
-                paystack_account_name,
-                req.ownerId
-            ]
+             WHERE id = $7 
+             RETURNING currency, payment_type, provider_code, provider_name, account_number, account_name, payment_configured`,
+            [currency, payment_type, provider_code, provider_name, account_number, account_name, req.ownerId]
         );
         
         res.json(updateResult.rows[0]);

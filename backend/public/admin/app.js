@@ -1500,9 +1500,9 @@ async function renderPaymentSetup() {
     const container = document.getElementById('settingsContent');
     
     try {
-        const [paymentSetup, banks] = await Promise.all([
+        const [paymentSetup, providers] = await Promise.all([
             apiCall('/settings/payment-setup'),
-            apiCall('/settings/banks')
+            apiCall('/settings/payment-providers')
         ]);
         
         container.innerHTML = `
@@ -1511,9 +1511,11 @@ async function renderPaymentSetup() {
                 ${paymentSetup?.payment_configured ? 
                     `<div style="background:#d4edda; color:#155724; padding:15px; border-radius:8px; margin-bottom:20px;">
                         <strong>✅ Payment Configured!</strong><br>
-                        Account: ${escapeHtml(paymentSetup.paystack_account_name)}<br>
-                        Bank: ${escapeHtml(banks?.find(b => b.code === paymentSetup.paystack_bank_code)?.name || paymentSetup.paystack_bank_code)}<br>
-                        Account Number: ${escapeHtml(paymentSetup.paystack_account_number)}
+                        Currency: ${escapeHtml(paymentSetup.currency)}<br>
+                        Type: ${escapeHtml(paymentSetup.payment_type)}<br>
+                        Provider: ${escapeHtml(paymentSetup.provider_name)}<br>
+                        Account: ${escapeHtml(paymentSetup.account_name)}<br>
+                        Account Number: ${escapeHtml(paymentSetup.account_number)}
                     </div>` : 
                     `<div style="background:#fff3cd; color:#856404; padding:15px; border-radius:8px; margin-bottom:20px;">
                         <strong>⚠️ Payment Not Configured</strong><br>
@@ -1521,16 +1523,36 @@ async function renderPaymentSetup() {
                     </div>`
                 }
                 <div style="background:white; border:1px solid #e0e0e0; border-radius:8px; padding:20px;">
-                    <label>Bank</label>
-                    <select id="bankSelect" style="width:100%; padding:10px; margin-bottom:15px; border:1px solid #ddd; border-radius:4px;">
-                        <option value="">Select Bank</option>
-                        ${banks?.map(b => `<option value="${b.code}" ${paymentSetup?.paystack_bank_code === b.code ? 'selected' : ''}>${escapeHtml(b.name)}</option>`).join('') || ''}
+                    <label>Currency</label>
+                    <select id="currencySelect" style="width:100%; padding:10px; margin-bottom:15px; border:1px solid #ddd; border-radius:4px;">
+                        <option value="KES" ${paymentSetup?.currency === 'KES' ? 'selected' : ''}>KES (Kenyan Shilling)</option>
+                        <option value="USD" ${paymentSetup?.currency === 'USD' ? 'selected' : ''}>USD (US Dollar)</option>
+                        <option value="EUR" ${paymentSetup?.currency === 'EUR' ? 'selected' : ''}>EUR (Euro)</option>
+                        <option value="GBP" ${paymentSetup?.currency === 'GBP' ? 'selected' : ''}>GBP (British Pound)</option>
                     </select>
+                    
+                    <label>Type</label>
+                    <select id="paymentTypeSelect" style="width:100%; padding:10px; margin-bottom:15px; border:1px solid #ddd; border-radius:4px;">
+                        <option value="">Select Type</option>
+                        <option value="bank" ${paymentSetup?.payment_type === 'bank' ? 'selected' : ''}>Bank</option>
+                        <option value="mobile_money" ${paymentSetup?.payment_type === 'mobile_money' ? 'selected' : ''}>Mobile Money</option>
+                    </select>
+                    
+                    <div id="providerSection" style="display:none;">
+                        <label id="providerLabel">Provider</label>
+                        <select id="providerSelect" style="width:100%; padding:10px; margin-bottom:15px; border:1px solid #ddd; border-radius:4px;">
+                            <option value="">Select Provider</option>
+                        </select>
+                    </div>
+                    
                     <label>Account Number</label>
-                    <input type="text" id="accountNumber" placeholder="Enter account number" value="${escapeHtml(paymentSetup?.paystack_account_number || '')}" style="width:100%; padding:10px; margin-bottom:15px; border:1px solid #ddd; border-radius:4px;">
+                    <input type="text" id="accountNumber" placeholder="Enter account number" value="${escapeHtml(paymentSetup?.account_number || '')}" style="width:100%; padding:10px; margin-bottom:15px; border:1px solid #ddd; border-radius:4px;">
+                    
                     <label>Account Name</label>
-                    <input type="text" id="accountName" placeholder="Enter account name" value="${escapeHtml(paymentSetup?.paystack_account_name || '')}" style="width:100%; padding:10px; margin-bottom:15px; border:1px solid #ddd; border-radius:4px;">
+                    <input type="text" id="accountName" placeholder="Enter account name" value="${escapeHtml(paymentSetup?.account_name || '')}" style="width:100%; padding:10px; margin-bottom:15px; border:1px solid #ddd; border-radius:4px;">
+                    
                     <div id="paymentMsg" style="color:#e74c3c; font-size:13px; margin-top:5px; margin-bottom:15px;"></div>
+                    
                     <div style="display:flex; gap:10px;">
                         <button class="btn-cancel" onclick="renderSettings()">Cancel</button>
                         <button class="btn-save" id="savePaymentBtn">Save Payment Setup</button>
@@ -1539,13 +1561,47 @@ async function renderPaymentSetup() {
             </div>
         `;
         
+        // Handle payment type change
+        const paymentTypeSelect = document.getElementById('paymentTypeSelect');
+        const providerSection = document.getElementById('providerSection');
+        const providerLabel = document.getElementById('providerLabel');
+        const providerSelect = document.getElementById('providerSelect');
+        
+        paymentTypeSelect.onchange = () => {
+            const type = paymentTypeSelect.value;
+            providerSection.style.display = type ? 'block' : 'none';
+            
+            if (type === 'bank') {
+                providerLabel.textContent = 'Bank Name';
+                providerSelect.innerHTML = `
+                    <option value="">Select Bank</option>
+                    ${providers?.banks?.map(b => `<option value="${b.code}" ${paymentSetup?.provider_code === b.code && paymentSetup?.payment_type === 'bank' ? 'selected' : ''}>${escapeHtml(b.name)}</option>`).join('') || ''}
+                `;
+            } else if (type === 'mobile_money') {
+                providerLabel.textContent = 'Mobile Money Provider';
+                providerSelect.innerHTML = `
+                    <option value="">Select Provider</option>
+                    ${providers?.mobileMoney?.map(m => `<option value="${m.code}" ${paymentSetup?.provider_code === m.code && paymentSetup?.payment_type === 'mobile_money' ? 'selected' : ''}>${escapeHtml(m.name)}</option>`).join('') || ''}
+                `;
+            }
+        };
+        
+        // Trigger initial load if payment setup exists
+        if (paymentSetup?.payment_type) {
+            paymentTypeSelect.value = paymentSetup.payment_type;
+            paymentTypeSelect.onchange();
+        }
+        
         document.getElementById('savePaymentBtn').onclick = async () => {
-            const bankCode = document.getElementById('bankSelect').value;
+            const currency = document.getElementById('currencySelect').value;
+            const paymentType = document.getElementById('paymentTypeSelect').value;
+            const providerCode = document.getElementById('providerSelect').value;
+            const providerName = document.getElementById('providerSelect').options[document.getElementById('providerSelect').selectedIndex]?.text || '';
             const accountNumber = document.getElementById('accountNumber').value.trim();
             const accountName = document.getElementById('accountName').value.trim();
             const msg = document.getElementById('paymentMsg');
             
-            if (!bankCode || !accountNumber || !accountName) {
+            if (!currency || !paymentType || !providerCode || !accountNumber || !accountName) {
                 msg.textContent = 'Please fill all fields';
                 return;
             }
@@ -1553,9 +1609,12 @@ async function renderPaymentSetup() {
             const result = await apiCall('/settings/payment-setup', {
                 method: 'PUT',
                 body: JSON.stringify({
-                    paystack_bank_code: bankCode,
-                    paystack_account_number: accountNumber,
-                    paystack_account_name: accountName
+                    currency,
+                    payment_type: paymentType,
+                    provider_code: providerCode,
+                    provider_name: providerName,
+                    account_number: accountNumber,
+                    account_name: accountName
                 })
             });
             

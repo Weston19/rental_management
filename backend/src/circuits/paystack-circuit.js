@@ -46,8 +46,8 @@ async function resolveBankAccount(accountNumber, bankCode) {
 }
 
 // ========== LIST BANKS ==========
-async function listBanks() {
-    return await makePaystackRequest('GET', '/bank');
+async function listBanks(country = 'ng') {
+    return await makePaystackRequest('GET', `/bank?country=${country}`);
 }
 
 // ========== CREATE SUBACCOUNT ==========
@@ -134,8 +134,8 @@ module.exports = {
     resolveAccount: async ({ account_number, bank_code }) => {
         return await resolveBankCircuit.fire(account_number, bank_code);
     },
-    listBanks: async () => {
-        return await listBanksCircuit.fire();
+    listBanks: async (country = 'ng') => {
+        return await listBanksCircuit.fire(country);
     },
     createSubaccount: async ({ business_name, settlement_bank, account_number, percentage_charge = 0 }) => {
         return await createSubaccountCircuit.fire(business_name, settlement_bank, account_number, percentage_charge);
