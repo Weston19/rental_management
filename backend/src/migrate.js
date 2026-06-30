@@ -220,6 +220,36 @@ const migrations = [
                 CREATE INDEX IF NOT EXISTS idx_payment_config_audit_admin_id ON payment_config_audit(admin_id)
             `);
         }
+    },
+    {
+        version: 7,
+        name: 'add_payment_setup_columns_to_admin',
+        up: async (client) => {
+            // Add payment setup columns
+            const columnsToAdd = [
+                { name: 'currency', type: 'VARCHAR(10) DEFAULT \'KES\'' },
+                { name: 'payment_type', type: 'VARCHAR(20)' },
+                { name: 'provider_code', type: 'VARCHAR(100)' },
+                { name: 'provider_name', type: 'VARCHAR(255)' },
+                { name: 'account_number', type: 'VARCHAR(100)' },
+                { name: 'account_name', type: 'VARCHAR(255)' }
+            ];
+
+            for (const col of columnsToAdd) {
+                const exists = await client.query(`
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_schema = 'public'
+                      AND table_name = 'admin'
+                      AND column_name = $1
+                `, [col.name]);
+
+                if (exists.rows.length === 0) {
+                    await client.query(`
+                        ALTER TABLE admin ADD COLUMN ${col.name} ${col.type}
+                    `);
+                }
+            }
+        }
     }
 ];
 

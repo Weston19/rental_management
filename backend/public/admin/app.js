@@ -1526,9 +1526,6 @@ async function renderPaymentSetup() {
                     <label>Currency</label>
                     <select id="currencySelect" style="width:100%; padding:10px; margin-bottom:15px; border:1px solid #ddd; border-radius:4px;">
                         <option value="KES" ${paymentSetup?.currency === 'KES' ? 'selected' : ''}>KES (Kenyan Shilling)</option>
-                        <option value="USD" ${paymentSetup?.currency === 'USD' ? 'selected' : ''}>USD (US Dollar)</option>
-                        <option value="EUR" ${paymentSetup?.currency === 'EUR' ? 'selected' : ''}>EUR (Euro)</option>
-                        <option value="GBP" ${paymentSetup?.currency === 'GBP' ? 'selected' : ''}>GBP (British Pound)</option>
                     </select>
                     
                     <label>Type</label>

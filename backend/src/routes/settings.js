@@ -198,11 +198,54 @@ router.get('/payment-providers', async (req, res) => {
     try {
         const paystackCircuit = require('../circuits/paystack-circuit');
         let banksResult;
+        let kenyanBanks = [];
         try {
             banksResult = await paystackCircuit.listBanks('ke');
+            console.log('Paystack banks result:', JSON.stringify(banksResult, null, 2));
+            if (banksResult && banksResult.data && Array.isArray(banksResult.data)) {
+                kenyanBanks = banksResult.data.map(bank => ({
+                    code: bank.code,
+                    name: bank.name
+                }));
+            }
         } catch (e) {
             console.error('Error fetching banks from Paystack:', e);
-            banksResult = { data: [] };
+        }
+        
+        // Fallback to common Kenyan banks if Paystack returns nothing
+        if (kenyanBanks.length === 0) {
+            kenyanBanks = [
+                { code: '011', name: 'Equity Bank Kenya' },
+                { code: '001', name: 'KCB Bank Kenya' },
+                { code: '002', name: 'Co-operative Bank of Kenya' },
+                { code: '003', name: 'NCBA Bank Kenya' },
+                { code: '004', name: 'Absa Bank Kenya' },
+                { code: '005', name: 'Standard Chartered Bank Kenya' },
+                { code: '006', name: 'DTB Bank Kenya' },
+                { code: '007', name: 'I&M Bank Kenya' },
+                { code: '008', name: 'Sidian Bank' },
+                { code: '009', name: 'Family Bank Kenya' },
+                { code: '010', name: 'Safaricom M-Pesa' },
+                { code: '012', name: 'Kenya Women Microfinance Bank' },
+                { code: '013', name: 'Postbank Kenya' },
+                { code: '014', name: 'Housing Finance Company Kenya' },
+                { code: '015', name: 'Kenya Commercial Bank' },
+                { code: '016', name: 'Chase Bank Kenya' },
+                { code: '017', name: 'Barclays Bank of Kenya' },
+                { code: '018', name: 'CFC Stanbic Bank' },
+                { code: '019', name: 'NIC Bank Kenya' },
+                { code: '020', name: 'Bank of India Kenya' },
+                { code: '021', name: 'Bank of Baroda Kenya' },
+                { code: '022', name: 'Citibank Kenya' },
+                { code: '023', name: 'Ecobank Kenya' },
+                { code: '024', name: 'Guaranty Trust Bank Kenya' },
+                { code: '025', name: 'Habib Bank Kenya' },
+                { code: '026', name: 'Mashreq Bank Kenya' },
+                { code: '027', name: 'Middle East Bank Kenya' },
+                { code: '028', name: 'Prime Bank Kenya' },
+                { code: '029', name: 'Standard Bank Kenya' },
+                { code: '030', name: 'Victoria Commercial Bank Kenya' }
+            ];
         }
         
         // Kenyan mobile money providers (common ones supported by Paystack)
@@ -213,12 +256,6 @@ router.get('/payment-providers', async (req, res) => {
             { code: 'AIRTEL', name: 'Airtel Kenya' },
             { code: 'TELKOM', name: 'Telkom Kenya' }
         ];
-        
-        // Kenyan banks from Paystack
-        const kenyanBanks = (banksResult && banksResult.data) ? banksResult.data.map(bank => ({
-            code: bank.code,
-            name: bank.name
-        })) : [];
         
         res.json({
             banks: kenyanBanks,
