@@ -1537,6 +1537,8 @@ tr:hover td {
 .skeleton {
     background: #e9ecef;
     border-radius: 0;
+    min-width: 50px;
+    min-height: 16px;
 }
 
 /* Dashboard skeleton cards */
@@ -1652,6 +1654,8 @@ tr:hover td {
 .skeleton {
     background: #e9ecef;
     border-radius: 0;
+    min-width: 50px;
+    min-height: 16px;
 }
 
 /* Dashboard skeleton cards */
