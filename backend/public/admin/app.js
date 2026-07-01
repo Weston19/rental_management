@@ -10,7 +10,20 @@ let itemsPerPage = 10;
 let currentData = [];
 
 // ========== HELPER FUNCTIONS ==========
+// Frontend cache for GET requests
+const frontendCache = new Map();
+const CACHE_TTL = 60 * 1000; // 1 minute TTL for frontend cache
+
 async function apiCall(endpoint, options = {}) {
+    // For GET requests, check frontend cache first
+    if (!options.method || options.method === 'GET') {
+        const cacheKey = endpoint;
+        const cachedEntry = frontendCache.get(cacheKey);
+        if (cachedEntry && Date.now() - cachedEntry.timestamp < CACHE_TTL) {
+            return cachedEntry.data;
+        }
+    }
+    
     const defaultOptions = {
         headers: {
             'Content-Type': 'application/json',
@@ -29,10 +42,27 @@ async function apiCall(endpoint, options = {}) {
         }
         
         const data = await response.json();
+        
+        // Cache successful GET responses
+        if ((!options.method || options.method === 'GET') && response.ok) {
+            frontendCache.set(endpoint, { data, timestamp: Date.now() });
+        }
+        
         return data;
     } catch (error) {
         return null;
     }
+}
+
+// Helper to invalidate frontend cache for matching patterns
+function invalidateCache(patterns) {
+    const keysToDelete = [];
+    frontendCache.forEach((_, key) => {
+        if (patterns.some(p => key.includes(p))) {
+            keysToDelete.push(key);
+        }
+    });
+    keysToDelete.forEach(key => frontendCache.delete(key));
 }
 
 async function uploadImage(file, type) {

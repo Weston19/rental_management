@@ -211,6 +211,9 @@ router.post('/', async (req, res) => {
         );
 
         await applyPaymentToBills(tenant_id, numericAmount, req.ownerId);
+        await redis.del(`all_payments:${req.ownerId}`);
+        await redis.del(`tenant_payments:${req.ownerId}:${tenant_id}`);
+        await redis.del(`all_bills:${req.ownerId}`);
         res.json(result.rows[0]);
     } catch (error) {
         console.error(error);
