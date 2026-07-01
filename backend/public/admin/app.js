@@ -498,19 +498,28 @@ async function renderDashboard() {
     let arrearsList = [];
     
     if (allTenants) {
-        for (const tenant of allTenants) {
-            try {
-                const balanceResult = await apiCall(`/bills/tenant-balance/${tenant.id}`);
-                const balance = balanceResult?.balance || 0;
-                tenant.balance = balance;
-                if (balance > 0) {
-                    arrearsTotal += balance;
-                    tenantsWithArrears++;
-                    arrearsList.push(tenant);
+        // Create a map of tenant balances from allBills for faster lookup
+        const tenantBalanceMap = new Map();
+        
+        if (allBills) {
+            for (const bill of allBills) {
+                const tenantId = bill.tenant_id;
+                const billBalance = (parseFloat(bill.total_bill) || 0) - (parseFloat(bill.total_paid) || 0);
+                
+                if (!tenantBalanceMap.has(tenantId)) {
+                    tenantBalanceMap.set(tenantId, 0);
                 }
-            } catch (error) {
-                console.error(`Error fetching balance for tenant ${tenant.id} in dashboard:`, error);
-                tenant.balance = 0;
+                tenantBalanceMap.set(tenantId, tenantBalanceMap.get(tenantId) + billBalance);
+            }
+        }
+        
+        for (const tenant of allTenants) {
+            const balance = tenantBalanceMap.get(tenant.id) || 0;
+            tenant.balance = balance;
+            if (balance > 0) {
+                arrearsTotal += balance;
+                tenantsWithArrears++;
+                arrearsList.push(tenant);
             }
         }
     }
