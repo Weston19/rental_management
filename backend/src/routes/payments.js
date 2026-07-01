@@ -1,9 +1,14 @@
 const express = require('express');
+const multer = require('multer');
 const pool = require('../utils/db');
 const auth = require('../middleware/auth');
 const redis = require('../utils/redis');
 const bcrypt = require('bcrypt');
 const { blockViewerWrites, requireOwner } = require('../middleware/requireRole');
+
+// Configure multer for file uploads (in-memory storage)
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage, limits: { fileSize: 5 * 1024 * 1024 } }); // 5MB limit
 
 // Tiered Redis TTLs (in seconds)
 const TTL = {
@@ -365,5 +370,168 @@ router.get('/filters/data', async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
+
+// POST import payments from CSV
+router.post('/import', upload.single('csvFile'), async (req, res) => {
+    const { password } = req.body;
+    
+    try {
+        // Verify admin password
+        const admin = await pool.query('SELECT password_hash FROM admin WHERE id = $1', [req.adminId]);
+        if (!admin.rows.length) return res.status(401).json({ error: 'Invalid credentials' });
+        const valid = await bcrypt.compare(password, admin.rows[0].password_hash);
+        if (!valid) return res.status(401).json({ error: 'Invalid password' });
+
+        if (!req.file) {
+            return res.status(400).json({ error: 'No file uploaded' });
+        }
+
+        // Parse CSV content
+        const csvContent = req.file.buffer.toString('utf8');
+        const lines = csvContent.split('\n').filter(line => line.trim());
+        
+        if (lines.length < 2) {
+            return res.status(400).json({ error: 'CSV file must contain at least a header and one data row' });
+        }
+
+        // Parse header
+        const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/"/g, ''));
+        
+        // Validate required headers
+        const requiredHeaders = ['tenant', 'property', 'unit', 'amount', 'payment date', 'type', 'source', 'transaction id', 'notes'];
+        const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
+        
+        if (missingHeaders.length > 0) {
+            return res.status(400).json({ error: `Missing required headers: ${missingHeaders.join(', ')}` });
+        }
+
+        const results = {
+            imported: 0,
+            skipped: 0,
+            errors: []
+        };
+
+        // Process each row
+        for (let i = 1; i < lines.length; i++) {
+            try {
+                // Simple CSV parsing (handles quoted fields)
+                const row = parseCSVLine(lines[i]);
+                const rowData = {};
+                headers.forEach((header, index) => {
+                    rowData[header] = row[index] || '';
+                });
+
+                // Find tenant by name, property, and unit
+                const tenantResult = await pool.query(`
+                    SELECT t.id 
+                    FROM tenants t
+                    JOIN properties p ON t.property_id = p.id
+                    JOIN rooms r ON t.room_id = r.id
+                    WHERE 
+                        t.owner_id = $1 AND
+                        CONCAT(t.first_name, ' ', t.last_name) ILIKE $2 AND
+                        p.name ILIKE $3 AND
+                        r.house_no ILIKE $4
+                `, [req.ownerId, rowData['tenant'], rowData['property'], rowData['unit']]);
+
+                if (tenantResult.rows.length === 0) {
+                    results.skipped++;
+                    results.errors.push(`Row ${i + 1}: Tenant "${rowData['tenant']}" in "${rowData['property']}" unit "${rowData['unit']}" not found`);
+                    continue;
+                }
+
+                const tenantId = tenantResult.rows[0].id;
+                const amount = parseAmount(rowData['amount']);
+                
+                if (isNaN(amount) || amount <= 0) {
+                    results.skipped++;
+                    results.errors.push(`Row ${i + 1}: Invalid amount "${rowData['amount']}"`);
+                    continue;
+                }
+
+                // Check for duplicate transaction ID
+                if (rowData['transaction id']) {
+                    const dup = await pool.query(
+                        'SELECT id FROM payments WHERE transaction_id = $1',
+                        [rowData['transaction id']]
+                    );
+                    if (dup.rows.length > 0) {
+                        results.skipped++;
+                        results.errors.push(`Row ${i + 1}: Transaction ID "${rowData['transaction id']}" already exists`);
+                        continue;
+                    }
+                }
+
+                // Insert payment
+                await pool.query(
+                    `INSERT INTO payments
+                        (tenant_id, amount, payment_date, payment_type, transaction_id, notes, source, owner_id)
+                     VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+                    [
+                        tenantId, 
+                        amount, 
+                        rowData['payment date'] || new Date(),
+                        rowData['type'] || 'rent',
+                        rowData['transaction id'] || null,
+                        rowData['notes'],
+                        rowData['source'] || 'manual',
+                        req.ownerId
+                    ]
+                );
+
+                await applyPaymentToBills(tenantId, amount, req.ownerId);
+                results.imported++;
+
+            } catch (rowError) {
+                results.skipped++;
+                results.errors.push(`Row ${i + 1}: ${rowError.message}`);
+            }
+        }
+
+        // Clear caches
+        await redis.del(`all_payments:${req.ownerId}`);
+        await redis.del(`all_bills:${req.ownerId}`);
+        
+        // Clear any tenant-specific payment caches
+        const keys = await redis.keys(`tenant_payments:${req.ownerId}:*`);
+        if (keys.length > 0) {
+            await redis.del(...keys);
+        }
+
+        res.json(results);
+
+    } catch (error) {
+        console.error('CSV import error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Helper: Parse CSV line handling quoted fields
+function parseCSVLine(line) {
+    const result = [];
+    let current = '';
+    let inQuotes = false;
+    
+    for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        const nextChar = line[i + 1];
+        
+        if (char === '"') {
+            if (inQuotes && nextChar === '"') {
+                current += '"';
+                i++;
+            } else {
+                inQuotes = !inQuotes;
+            }
+        } else if (char === ',' && !inQuotes) {
+            result.push(current.trim());
+            current = '';
+        } else {
+            current += char;
+        }
+    }
+    result.push(current.trim());
+    return result;
+}
 
 module.exports = router;

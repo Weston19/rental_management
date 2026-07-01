@@ -4041,6 +4041,7 @@ async function renderPayments() {
     content.innerHTML = `
         <div style="display:flex; justify-content:flex-end; margin-bottom:15px;">
             <button class="btn-add" id="addPaymentBtn">+ Record Payment</button>
+            <button class="btn-add" id="importCSVBtn" style="background:#3498db; margin-left:10px;">📥 Import CSV</button>
             <button class="btn-add" id="unassignedBtn" style="background:#f39c12; margin-left:10px;">⚠ Unassigned Payments</button>
         </div>
         <div class="cards" id="summaryCards" style="margin-bottom:20px;">
@@ -4069,6 +4070,7 @@ async function renderPayments() {
     `;
     
     document.getElementById('addPaymentBtn').onclick = () => showAddPaymentModal(properties, tenants);
+    document.getElementById('importCSVBtn').onclick = () => showImportCSVModal();
     document.getElementById('unassignedBtn').onclick = () => showUnassignedPaymentsModal();
     document.getElementById('downloadCSVBtn').onclick = () => downloadPaymentsCSV();
     document.getElementById('downloadPDFBtn').onclick = () => downloadPaymentsPDF();
@@ -4333,6 +4335,127 @@ async function showAddPaymentModal(properties, tenants) {
     }, 100);
 }
 
+// ========== IMPORT CSV MODAL ==========
+async function showImportCSVModal() {
+    const modalHtml = `<div class="modal-content" style="max-width:600px;">
+        <h3>Import Payments from CSV</h3>
+        <div style="background:#d1ecf1; padding:12px; border-radius:0; margin-bottom:16px; border:1px solid #17a2b8;">
+            <p style="margin:0 0 8px 0; color:#0c5460;"><strong>CSV Format:</strong></p>
+            <ul style="margin:0; padding-left:20px; color:#0c5460; font-size:13px;">
+                <li>Columns: Tenant, Property, Unit, Amount, Payment Date, Type, Source, Transaction ID, Notes</li>
+                <li>Tenant: Full name (e.g., "Washingtone Odera")</li>
+                <li>Property: Property name (e.g., "Cheboror Property-Kipkaren")</li>
+                <li>Unit: Room/house number (e.g., "PMRC1002")</li>
+                <li>Type: rent, deposit, or penalty</li>
+                <li>Source: manual or auto</li>
+            </ul>
+        </div>
+        <label>Select CSV File</label>
+        <input type="file" id="csvFileInput" accept=".csv" style="padding:8px; border:1px solid #ced4da; border-radius:0; width:100%;">
+        <div id="csvPreview" style="margin-top:12px; max-height:200px; overflow:auto; border:1px solid #ced4da; border-radius:0; display:none;">
+            <table style="width:100%; border-collapse:collapse; font-size:12px;">
+                <thead id="csvPreviewHead"></thead>
+                <tbody id="csvPreviewBody"></tbody>
+            </table>
+        </div>
+        <label>Admin Password *</label>
+        <input type="password" id="importAdminPassword" placeholder="Enter your password">
+        <div class="modal-buttons">
+            <button class="btn-cancel" id="closeImportModalBtn">Cancel</button>
+            <button class="btn-save" id="importCSVSubmitBtn" disabled>Import Payments</button>
+        </div>
+    </div>`;
+    
+    showModal(modalHtml, null);
+    
+    setTimeout(() => {
+        const fileInput = document.getElementById('csvFileInput');
+        const submitBtn = document.getElementById('importCSVSubmitBtn');
+        let selectedFile = null;
+        
+        fileInput.onchange = (e) => {
+            selectedFile = e.target.files[0];
+            if (selectedFile) {
+                submitBtn.disabled = false;
+                previewCSV(selectedFile);
+            } else {
+                submitBtn.disabled = true;
+                document.getElementById('csvPreview').style.display = 'none';
+            }
+        };
+        
+        function previewCSV(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const content = e.target.result;
+                const lines = content.split('\n').filter(l => l.trim()).slice(0, 6); // Show first 5 rows
+                if (lines.length > 0) {
+                    const headers = lines[0].split(',').map(h => h.trim());
+                    const rows = lines.slice(1).map(line => line.split(',').map(c => c.trim()));
+                    
+                    document.getElementById('csvPreviewHead').innerHTML = 
+                        `<tr>${headers.map(h => `<th style="background:#e9ecef; padding:6px; border:1px solid #ced4da;">${escapeHtml(h)}</th>`).join('')}</tr>`;
+                    document.getElementById('csvPreviewBody').innerHTML = 
+                        rows.map(row => `<tr>${row.map(c => `<td style="padding:6px; border:1px solid #dee2e6;">${escapeHtml(c)}</td>`).join('')}</tr>`).join('');
+                    document.getElementById('csvPreview').style.display = 'block';
+                }
+            };
+            reader.readAsText(file);
+        }
+        
+        submitBtn.onclick = async () => {
+            const password = document.getElementById('importAdminPassword').value;
+            if (!password) {
+                showToast('Please enter your admin password', 'error');
+                return;
+            }
+            if (!selectedFile) {
+                showToast('Please select a CSV file', 'error');
+                return;
+            }
+            
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = 'Importing...';
+            
+            const formData = new FormData();
+            formData.append('csvFile', selectedFile);
+            formData.append('password', password);
+            
+            try {
+                const response = await fetch(`${API_URL}/payments/import`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result?.error) {
+                    showToast('Error: ' + result.error, 'error');
+                } else {
+                    let message = `Import complete! Imported: ${result.imported}, Skipped: ${result.skipped}`;
+                    if (result.errors && result.errors.length > 0) {
+                        message += `\n\nErrors:\n${result.errors.slice(0, 5).join('\n')}`;
+                        if (result.errors.length > 5) message += `\n... and ${result.errors.length - 5} more`;
+                    }
+                    showToast(message, result.imported > 0 ? 'success' : 'warning');
+                    document.querySelector('.modal')?.remove();
+                    renderPayments();
+                    renderBilling();
+                    renderTenantList();
+                }
+            } catch (error) {
+                showToast('Import failed: ' + error.message, 'error');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = 'Import Payments';
+            }
+        };
+    }, 100);
+}
+
 // ========== EDIT PAYMENT ==========
 async function editPayment(paymentId) {
     const payment = await apiCall(`/payments/${paymentId}`);
@@ -4340,10 +4463,10 @@ async function editPayment(paymentId) {
     
     const modalHtml = `<div class="modal-content" style="max-width:500px;">
         <h3>Edit Payment</h3>
-        <div style="background:#f8f9fa; padding:12px; border-radius:6px; margin-bottom:16px;">
-            <p style="margin:4px 0;"><strong>Tenant:</strong> ${escapeHtml(payment.first_name)} ${escapeHtml(payment.last_name)}</p>
-            <p style="margin:4px 0;"><strong>Property:</strong> ${escapeHtml(payment.property_name)}</p>
-            <p style="margin:4px 0;"><strong>Unit:</strong> ${escapeHtml(payment.house_no)}</p>
+        <div style="background:#e9ecef; padding:14px; border-radius:0; border:1px solid #ced4da; margin-bottom:20px;">
+            <p style="margin:6px 0;"><strong>Tenant:</strong> ${escapeHtml(payment.first_name)} ${escapeHtml(payment.last_name)}</p>
+            <p style="margin:6px 0;"><strong>Property:</strong> ${escapeHtml(payment.property_name)}</p>
+            <p style="margin:6px 0;"><strong>Unit:</strong> ${escapeHtml(payment.house_no)}</p>
         </div>
         <label>Amount (KES)</label>
         <input type="number" id="editAmount" value="${payment.amount}" step="0.01">
