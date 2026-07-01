@@ -4,6 +4,14 @@ const auth = require('../middleware/auth');
 const redis = require('../utils/redis');
 const { blockViewerWrites, requireOwner } = require('../middleware/requireRole');
 
+// Tiered Redis TTLs (in seconds)
+const TTL = {
+    STATIC: 86400,    // 24 hours
+    SLOW: 3600,       // 1 hour
+    MEDIUM: 600,       // 10 minutes
+    FAST: 120         // 2 minutes
+};
+
 const router = express.Router();
 
 router.use(auth, blockViewerWrites);
@@ -66,7 +74,7 @@ router.get('/', async (req, res) => {
             ORDER BY b.bill_month DESC, b.id DESC
         `, [req.ownerId]);
         
-        await redis.set(cacheKey, JSON.stringify(result.rows), { ex: 3600 });
+        await redis.set(cacheKey, JSON.stringify(result.rows), { ex: TTL.FAST });
         res.json(result.rows);
     } catch (error) {
         console.error(error);

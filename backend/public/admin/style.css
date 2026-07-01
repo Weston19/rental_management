@@ -1597,6 +1597,218 @@ tr:hover td {
     border-radius: 4px;
 }
 
+/* ========== SKELETON LOADERS ========== */
+.skeleton {
+    background: linear-gradient(
+        90deg,
+        #f0f0f0 25%,
+        #e0e0e0 50%,
+        #f0f0f0 75%
+    );
+    background-size: 200% 100%;
+    animation: skeleton-loading 1.5s infinite;
+}
+
+@keyframes skeleton-loading {
+    0% {
+        background-position: 200% 0;
+    }
+    100% {
+        background-position: -200% 0;
+    }
+}
+
+/* Dashboard skeleton cards */
+.skeleton-card {
+    background: white;
+    border-radius: 8px;
+    border: 1px solid #e0e0e0;
+    padding: 16px 18px;
+    min-height: 140px;
+}
+
+.skeleton-card-title {
+    width: 80px;
+    height: 12px;
+    border-radius: 4px;
+    margin-bottom: 10px;
+}
+
+.skeleton-card-value {
+    width: 120px;
+    height: 24px;
+    border-radius: 4px;
+    margin-bottom: 8px;
+}
+
+.skeleton-card-sub {
+    width: 100px;
+    height: 10px;
+    border-radius: 4px;
+}
+
+/* Table skeleton */
+.skeleton-table {
+    width: 100%;
+    background: white;
+    border-radius: 6px;
+    border: 1px solid #e0e0e0;
+    overflow: hidden;
+}
+
+.skeleton-table-row {
+    display: flex;
+    padding: 12px 15px;
+    border-bottom: 1px solid #efefef;
+    gap: 12px;
+}
+
+.skeleton-table-cell {
+    height: 12px;
+    border-radius: 4px;
+}
+
+/* Properties list skeleton */
+.skeleton-property {
+    background: white;
+    border-radius: 8px;
+    border: 1px solid #e0e0e0;
+    padding: 16px;
+    margin-bottom: 12px;
+}
+
+.skeleton-property-name {
+    width: 200px;
+    height: 16px;
+    border-radius: 4px;
+    margin-bottom: 10px;
+}
+
+.skeleton-property-details {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.skeleton-property-detail {
+    width: 100px;
+    height: 10px;
+    border-radius: 4px;
+}
+
+/* Tenants list skeleton */
+.skeleton-tenant {
+    background: white;
+    border-radius: 8px;
+    border: 1px solid #e0e0e0;
+    padding: 16px;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.skeleton-tenant-avatar {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+}
+
+.skeleton-tenant-info {
+    flex: 1;
+}
+
+.skeleton-tenant-name {
+    width: 150px;
+    height: 14px;
+    border-radius: 4px;
+    margin-bottom: 8px;
+}
+
+.skeleton-tenant-details {
+    display: flex;
+    gap: 12px;
+}
+
+.skeleton-tenant-detail {
+    width: 100px;
+    height: 10px;
+    border-radius: 4px;
+}
+
+/* ========== NOTIFICATION TOAST ========== */
+.toast-container {
+    position: fixed;
+    top: 80px;
+    right: 20px;
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.toast {
+    padding: 16px 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 300px;
+    animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+.toast.success {
+    background: linear-gradient(135deg, #27ae60, #2ecc71);
+    color: white;
+}
+
+.toast.error {
+    background: linear-gradient(135deg, #e74c3c, #c0392b);
+    color: white;
+}
+
+.toast.warning {
+    background: linear-gradient(135deg, #f39c12, #e67e22);
+    color: white;
+}
+
+.toast.info {
+    background: linear-gradient(135deg, #3498db, #2980b9);
+    color: white;
+}
+
+.toast-icon {
+    font-size: 20px;
+}
+
+.toast-message {
+    flex: 1;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.toast-close {
+    cursor: pointer;
+    font-size: 16px;
+    opacity: 0.8;
+}
+
+.toast-close:hover {
+    opacity: 1;
+}
+
 /* ========== FINANCIALS SUMMARY STYLES ========== */
 
 /* Summary Container */

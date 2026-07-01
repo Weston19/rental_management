@@ -47,6 +47,31 @@ async function apiCall(endpoint, options = {}) {
         if ((!options.method || options.method === 'GET') && response.ok) {
             frontendCache.set(endpoint, { data, timestamp: Date.now() });
         }
+        // Invalidate cache on mutations (POST, PUT, DELETE)
+        else if (['POST', 'PUT', 'DELETE'].includes(options.method) && response.ok) {
+            // Determine which cache keys to invalidate based on endpoint
+            const invalidatePatterns = [];
+            
+            if (endpoint.includes('/properties')) {
+                invalidatePatterns.push('/properties', '/rooms', '/tenants', '/bills', '/payments', '/financials', '/dashboard');
+            } else if (endpoint.includes('/rooms')) {
+                invalidatePatterns.push('/properties', '/rooms', '/tenants');
+            } else if (endpoint.includes('/tenants')) {
+                invalidatePatterns.push('/tenants', '/bills', '/payments', '/financials', '/properties');
+            } else if (endpoint.includes('/bills')) {
+                invalidatePatterns.push('/bills', '/payments', '/financials', '/tenants', '/dashboard');
+            } else if (endpoint.includes('/payments')) {
+                invalidatePatterns.push('/payments', '/bills', '/financials', '/tenants', '/dashboard');
+            } else if (endpoint.includes('/financials')) {
+                invalidatePatterns.push('/financials', '/payments', '/tenants', '/dashboard');
+            } else if (endpoint.includes('/settings')) {
+                invalidatePatterns.push('/settings');
+            } else if (endpoint.includes('/notifications')) {
+                invalidatePatterns.push('/notifications');
+            }
+            
+            invalidateCache(invalidatePatterns);
+        }
         
         return data;
     } catch (error) {
@@ -63,6 +88,49 @@ function invalidateCache(patterns) {
         }
     });
     keysToDelete.forEach(key => frontendCache.delete(key));
+}
+
+// Toast notification function to replace alerts
+function showToast(message, type = 'info', duration = 4000) {
+    // Create toast container if it doesn't exist
+    let container = document.querySelector('.toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.className = 'toast-container';
+        document.body.appendChild(container);
+    }
+
+    // Create toast element
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    
+    const icons = {
+        success: '✅',
+        error: '❌',
+        warning: '⚠️',
+        info: 'ℹ️'
+    };
+
+    toast.innerHTML = `
+        <span class="toast-icon">${icons[type]}</span>
+        <span class="toast-message">${message}</span>
+        <span class="toast-close">&times;</span>
+    `;
+
+    container.appendChild(toast);
+
+    // Auto remove toast after duration
+    const timeout = setTimeout(() => {
+        toast.style.animation = 'slideIn 0.3s ease-out reverse';
+        setTimeout(() => toast.remove(), 300);
+    }, duration);
+
+    // Close on click
+    toast.querySelector('.toast-close').addEventListener('click', () => {
+        clearTimeout(timeout);
+        toast.style.animation = 'slideIn 0.3s ease-out reverse';
+        setTimeout(() => toast.remove(), 300);
+    });
 }
 
 async function uploadImage(file, type) {
@@ -4221,11 +4289,11 @@ async function showAddPaymentModal(properties, tenants) {
                 const password = document.getElementById('adminPassword').value;
                 
                 if (!tenantId || !amount || amount <= 0) {
-                    alert('Please select a tenant and enter a valid amount');
+                    showToast('Please select a tenant and enter a valid amount', 'error');
                     return;
                 }
                 if (!password) {
-                    alert('Please enter your admin password');
+                    showToast('Please enter your admin password', 'error');
                     return;
                 }
                 
@@ -4243,9 +4311,9 @@ async function showAddPaymentModal(properties, tenants) {
                 });
                 
                 if (result?.error) {
-                    alert('Error: ' + result.error);
+                    showToast('Error: ' + result.error, 'error');
                 } else {
-                    alert('Payment recorded successfully!');
+                    showToast('Payment recorded successfully!', 'success');
                     document.querySelector('.modal')?.remove();
                     renderPayments();
                     renderBilling();
@@ -4261,25 +4329,27 @@ async function editPayment(paymentId) {
     const payment = await apiCall(`/payments/${paymentId}`);
     if (!payment) return;
     
-    // Only deposit and penalty can be edited
-    if (payment.payment_type !== 'deposit' && payment.payment_type !== 'penalty') {
-        alert('Rent payments cannot be edited. Only deposit and penalty can be modified.');
-        return;
-    }
-    
     const modalHtml = `<div class="modal-content" style="max-width:500px;">
-        <h3>Edit ${payment.payment_type.toUpperCase()} Payment</h3>
+        <h3>Edit Payment</h3>
+        <div style="background:#f8f9fa; padding:12px; border-radius:6px; margin-bottom:16px;">
+            <p style="margin:4px 0;"><strong>Tenant:</strong> ${escapeHtml(payment.first_name)} ${escapeHtml(payment.last_name)}</p>
+            <p style="margin:4px 0;"><strong>Property:</strong> ${escapeHtml(payment.property_name)}</p>
+            <p style="margin:4px 0;"><strong>Unit:</strong> ${escapeHtml(payment.house_no)}</p>
+        </div>
         <label>Amount (KES)</label>
         <input type="number" id="editAmount" value="${payment.amount}" step="0.01">
         <label>Payment Date</label>
         <input type="date" id="editDate" value="${payment.payment_date.split('T')[0]}">
         <label>Payment Type</label>
         <select id="editType">
+            <option value="rent" ${payment.payment_type === 'rent' ? 'selected' : ''}>Rent</option>
             <option value="deposit" ${payment.payment_type === 'deposit' ? 'selected' : ''}>Deposit</option>
             <option value="penalty" ${payment.payment_type === 'penalty' ? 'selected' : ''}>Penalty</option>
         </select>
         <label>Transaction ID</label>
         <input type="text" id="editTransactionId" value="${payment.transaction_id || ''}">
+        <label>Notes</label>
+        <textarea id="editNotes" rows="2">${payment.notes || ''}</textarea>
         <label>Reason for Edit *</label>
         <input type="text" id="editReason" placeholder="Why are you editing this payment?" required>
         <label>Admin Password *</label>
@@ -4293,50 +4363,51 @@ async function editPayment(paymentId) {
     showModal(modalHtml, null);
     
     setTimeout(() => {
-       document.getElementById('savePaymentBtn').onclick = async () => {
-    const tenantId = tenantSelect.value;
-    const amount = parseFloat(document.getElementById('paymentAmount').value);
-    const paymentDate = document.getElementById('paymentDate').value;
-    const paymentType = document.getElementById('paymentType').value;
-    const transactionId = document.getElementById('transactionId').value;
-    const notes = document.getElementById('paymentNotes').value;
-    const password = document.getElementById('adminPassword').value;
-    
-    if (!tenantId || !amount || amount <= 0) {
-        alert('Please select a tenant and enter a valid amount');
-        return;
-    }
-    if (!password) {
-        alert('Please enter your admin password');
-        return;
-    }
-    
-    const result = await apiCall('/payments', {
-        method: 'POST',
-        body: JSON.stringify({
-            tenant_id: parseInt(tenantId),
-            amount: amount,
-            payment_date: paymentDate,
-            payment_type: paymentType,
-            transaction_id: transactionId,
-            notes: notes,
-            password: password
-        })
-    });
-    
-    if (result?.error) {
-        alert('Error: ' + result.error);
-    } else {
-        alert('Payment recorded successfully!');
-        const modal = document.querySelector('.modal');
-        if (modal) modal.remove();
-        
-        // Force refresh all data
-        renderPayments();
-        renderBilling();
-        renderTenants();  // This updates the tenants table
-    }
-};
+        document.getElementById('saveEditBtn').onclick = async () => {
+            const amount = parseFloat(document.getElementById('editAmount').value);
+            const paymentDate = document.getElementById('editDate').value;
+            const paymentType = document.getElementById('editType').value;
+            const transactionId = document.getElementById('editTransactionId').value;
+            const notes = document.getElementById('editNotes').value;
+            const reason = document.getElementById('editReason').value;
+            const password = document.getElementById('adminPassword').value;
+            
+            if (!amount || amount <= 0) {
+                showToast('Please enter a valid amount', 'error');
+                return;
+            }
+            if (!reason) {
+                showToast('Please enter a reason for edit', 'error');
+                return;
+            }
+            if (!password) {
+                showToast('Please enter your admin password', 'error');
+                return;
+            }
+            
+            const result = await apiCall(`/payments/${paymentId}`, {
+                method: 'PUT',
+                body: JSON.stringify({
+                    amount: amount,
+                    payment_date: paymentDate,
+                    payment_type: paymentType,
+                    transaction_id: transactionId,
+                    notes: notes,
+                    reason: reason,
+                    password: password
+                })
+            });
+            
+            if (result?.error) {
+                showToast('Error: ' + result.error, 'error');
+            } else {
+                showToast('Payment updated successfully!', 'success');
+                document.querySelector('.modal')?.remove();
+                renderPayments();
+                renderBilling();
+                renderTenantList();
+            }
+        };
     }, 100);
 }
 
@@ -4363,7 +4434,7 @@ async function deletePayment(paymentId) {
                 const password = document.getElementById('adminPassword').value;
                 
                 if (!password) {
-                    alert('Please enter your admin password');
+                    showToast('Please enter your admin password', 'error');
                     return;
                 }
                 
@@ -4373,9 +4444,9 @@ async function deletePayment(paymentId) {
                 });
                 
                 if (result?.error) {
-                    alert('Error: ' + result.error);
+                    showToast('Error: ' + result.error, 'error');
                 } else {
-                    alert('Payment deleted successfully!');
+                    showToast('Payment deleted successfully!', 'success');
                     document.querySelector('.modal')?.remove();
                     renderPayments();
                     renderBilling();
@@ -4389,12 +4460,11 @@ async function deletePayment(paymentId) {
 async function sendReceipt(paymentId) {
     const payment = await apiCall(`/payments/${paymentId}`);
     if (!payment) return;
-    
+
     const receiptUrl = `${window.location.origin}/receipt/${paymentId}`;
     const smsMessage = `Payment Confirmation: KES ${formatNumber(payment.amount)} received from ${payment.first_name} ${payment.last_name}. View receipt: ${receiptUrl}`;
     
-    alert(`SMS would be sent to ${payment.phone}\n\nMessage: ${smsMessage}\n\n(SMS provider not configured yet - this is a placeholder)`);
-    
+    showToast(`Receipt SMS ready for ${payment.first_name} ${payment.last_name}`, 'info');
     await apiCall(`/payments/${paymentId}/receipt-sent`, { method: 'PUT' });
 }
 

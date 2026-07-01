@@ -5,6 +5,14 @@ const redis = require('../utils/redis');
 const bcrypt = require('bcrypt');
 const { blockViewerWrites, requireOwner } = require('../middleware/requireRole');
 
+// Tiered Redis TTLs (in seconds)
+const TTL = {
+    STATIC: 86400,    // 24 hours
+    SLOW: 3600,       // 1 hour
+    MEDIUM: 600,       // 10 minutes
+    FAST: 120         // 2 minutes
+};
+
 const router = express.Router();
 
 router.use(auth, blockViewerWrites);
@@ -104,7 +112,7 @@ router.get('/', async (req, res) => {
             ORDER BY p.payment_date DESC, p.id DESC
         `, [req.ownerId]);
         
-        await redis.set(cacheKey, JSON.stringify(result.rows), { ex: 3600 });
+        await redis.set(cacheKey, JSON.stringify(result.rows), { ex: TTL.FAST });
         res.json(result.rows);
     } catch (error) {
         console.error(error);
@@ -134,7 +142,7 @@ router.get('/:id', async (req, res) => {
         
         if (result.rows.length === 0) return res.status(404).json({ error: 'Payment not found' });
         
-        await redis.set(cacheKey, JSON.stringify(result.rows[0]), { ex: 3600 });
+        await redis.set(cacheKey, JSON.stringify(result.rows[0]), { ex: TTL.FAST });
         res.json(result.rows[0]);
     } catch (error) {
         console.error(error);
@@ -162,7 +170,7 @@ router.get('/tenant/:tenantId', async (req, res) => {
             [req.params.tenantId, req.ownerId]
         );
         
-        await redis.set(cacheKey, JSON.stringify(result.rows), { ex: 3600 });
+        await redis.set(cacheKey, JSON.stringify(result.rows), { ex: TTL.FAST });
         res.json(result.rows);
     } catch (error) {
         console.error(error);
@@ -221,9 +229,9 @@ router.post('/', async (req, res) => {
     }
 });
 
-// PUT update payment — manager+ (only deposit/penalty types)
+// PUT update payment — manager+
 router.put('/:id', async (req, res) => {
-    const { amount, payment_date, payment_type, transaction_id, notes, password, edit_reason } = req.body;
+    const { amount, payment_date, payment_type, transaction_id, notes, password, reason } = req.body;
 
     try {
         const admin = await pool.query('SELECT password_hash FROM admin WHERE id = $1', [req.adminId]);
@@ -233,30 +241,53 @@ router.put('/:id', async (req, res) => {
         const payment = await assertPaymentOwnership(req.params.id, req.ownerId);
         if (!payment) return res.status(404).json({ error: 'Payment not found' });
 
-        const current = await pool.query(
-            'SELECT payment_type, tenant_id FROM payments WHERE id = $1',
-            [req.params.id]
-        );
-        if (current.rows[0].payment_type === 'rent') {
-            return res.status(403).json({ error: 'Rent payments cannot be edited' });
-        }
-
         const numericAmount = parseAmount(amount);
         if (isNaN(numericAmount) || numericAmount <= 0) {
             return res.status(400).json({ error: 'Invalid amount' });
         }
 
-        const result = await pool.query(
-            `UPDATE payments
-             SET amount = $1, payment_date = $2, payment_type = $3, transaction_id = $4,
-                 notes = $5, edited_by = $6, edit_reason = $7, edit_count = edit_count + 1
-             WHERE id = $8 AND owner_id = $9 RETURNING *`,
-            [numericAmount, payment_date, payment_type, transaction_id, notes,
-             req.adminId, edit_reason, req.params.id, req.ownerId]
-        );
-
-        await updateTenantBalance(current.rows[0].tenant_id);
-        res.json(result.rows[0]);
+        // Recalculate bills after edit
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+            
+            // Update payment
+            const result = await client.query(
+                `UPDATE payments
+                 SET amount = $1, payment_date = $2, payment_type = $3, transaction_id = $4,
+                     notes = $5, edited_by = $6, edit_reason = $7, edit_count = edit_count + 1
+                 WHERE id = $8 AND owner_id = $9 RETURNING *`,
+                [numericAmount, payment_date, payment_type, transaction_id, notes,
+                 req.adminId, reason, req.params.id, req.ownerId]
+            );
+            
+            // Recalculate tenant's bills and balance
+            const tenantId = result.rows[0].tenant_id;
+            await client.query(`
+                UPDATE bills
+                SET total_paid = (
+                    SELECT COALESCE(SUM(amount), 0)
+                    FROM payments
+                    WHERE tenant_id = bills.tenant_id AND payment_date <= bills.bill_month + INTERVAL '1 month'
+                ), updated_at = NOW()
+                WHERE tenant_id = $1`, [tenantId]);
+            
+            await updateTenantBalance(tenantId, client);
+            await client.query('COMMIT');
+            
+            // Clear caches
+            await redis.del(`all_payments:${req.ownerId}`);
+            await redis.del(`payment:${req.ownerId}:${req.params.id}`);
+            await redis.del(`tenant_payments:${req.ownerId}:${tenantId}`);
+            await redis.del(`all_bills:${req.ownerId}`);
+            
+            res.json(result.rows[0]);
+        } catch (err) {
+            await client.query('ROLLBACK');
+            throw err;
+        } finally {
+            client.release();
+        }
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: error.message });

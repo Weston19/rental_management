@@ -4,6 +4,14 @@ const auth = require('../middleware/auth');
 const redis = require('../utils/redis');
 const { blockViewerWrites, requireOwner } = require('../middleware/requireRole');
 
+// Tiered Redis TTLs (in seconds)
+const TTL = {
+    STATIC: 86400,    // 24 hours for rarely changing data
+    SLOW: 3600,       // 1 hour for properties, rooms
+    MEDIUM: 600,      // 10 minutes for tenants
+    FAST: 120         // 2 minutes for payments, bills, financials
+};
+
 const router = express.Router();
 
 // Block viewers from all write operations on this router
@@ -46,7 +54,7 @@ router.get('/', async (req, res) => {
             total_units: p.total_rooms
         }));
 
-        await redis.set(cacheKey, JSON.stringify(propertiesWithUnits), { ex: 3600 });
+        await redis.set(cacheKey, JSON.stringify(propertiesWithUnits), { ex: TTL.SLOW });
         res.json(propertiesWithUnits);
     } catch (error) {
         console.error(error);
@@ -94,7 +102,7 @@ router.get('/:id', async (req, res) => {
             total_units: property.rows[0].total_rooms,
             rooms: rooms.rows 
         };
-        await redis.set(cacheKey, JSON.stringify(data), { ex: 3600 });
+        await redis.set(cacheKey, JSON.stringify(data), { ex: TTL.SLOW });
         res.json(data);
     } catch (error) {
         console.error(error);

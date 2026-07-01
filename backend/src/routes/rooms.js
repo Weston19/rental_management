@@ -4,6 +4,14 @@ const auth = require('../middleware/auth');
 const redis = require('../utils/redis');
 const { blockViewerWrites } = require('../middleware/requireRole');
 
+// Tiered Redis TTLs (in seconds)
+const TTL = {
+    STATIC: 86400,    // 24 hours for rarely changing data
+    SLOW: 3600,       // 1 hour for properties, rooms
+    MEDIUM: 600,      // 10 minutes for tenants
+    FAST: 120         // 2 minutes for payments, bills, financials
+};
+
 const router = express.Router();
 
 router.use(auth, blockViewerWrites);
@@ -25,7 +33,7 @@ router.get('/', async (req, res) => {
             ORDER BY p.name, r.house_no
         `, [req.ownerId]);
         
-        await redis.set(cacheKey, JSON.stringify(result.rows), { ex: 3600 });
+        await redis.set(cacheKey, JSON.stringify(result.rows), { ex: TTL.SLOW });
         res.json(result.rows);
     } catch (error) {
         console.error(error);
@@ -53,7 +61,7 @@ router.get('/property/:propertyId', async (req, res) => {
             [req.params.propertyId]
         );
         
-        await redis.set(cacheKey, JSON.stringify(result.rows), { ex: 3600 });
+        await redis.set(cacheKey, JSON.stringify(result.rows), { ex: TTL.SLOW });
         res.json(result.rows);
     } catch (error) {
         console.error(error);
@@ -81,7 +89,7 @@ router.get('/available/:propertyId', async (req, res) => {
             [req.params.propertyId]
         );
         
-        await redis.set(cacheKey, JSON.stringify(result.rows), { ex: 3600 });
+        await redis.set(cacheKey, JSON.stringify(result.rows), { ex: TTL.SLOW });
         res.json(result.rows);
     } catch (error) {
         console.error(error);

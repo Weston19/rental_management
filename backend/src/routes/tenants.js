@@ -4,6 +4,14 @@ const auth = require('../middleware/auth');
 const redis = require('../utils/redis');
 const { blockViewerWrites, requireOwner } = require('../middleware/requireRole');
 
+// Tiered Redis TTLs (in seconds)
+const TTL = {
+    STATIC: 86400,    // 24 hours for rarely changing data
+    SLOW: 3600,       // 1 hour for properties, rooms
+    MEDIUM: 600,      // 10 minutes for tenants
+    FAST: 120         // 2 minutes for payments, bills, financials
+};
+
 const router = express.Router();
 
 router.use(auth, blockViewerWrites);
@@ -42,7 +50,7 @@ router.get('/all', async (req, res) => {
             ORDER BY t.id DESC
         `, [req.ownerId]);
         
-        await redis.set(cacheKey, JSON.stringify(result.rows), { ex: 3600 });
+        await redis.set(cacheKey, JSON.stringify(result.rows), { ex: TTL.MEDIUM });
         res.json(result.rows);
     } catch (error) {
         console.error(error);
@@ -68,7 +76,7 @@ router.get('/', async (req, res) => {
             ORDER BY t.id DESC
         `, [req.ownerId]);
         
-        await redis.set(cacheKey, JSON.stringify(result.rows), { ex: 3600 });
+        await redis.set(cacheKey, JSON.stringify(result.rows), { ex: TTL.MEDIUM });
         res.json(result.rows);
     } catch (error) {
         console.error(error);
@@ -96,7 +104,7 @@ router.get('/:id', async (req, res) => {
 
         if (result.rows.length === 0) return res.status(404).json({ error: 'Tenant not found' });
         
-        await redis.set(cacheKey, JSON.stringify(result.rows[0]), { ex: 3600 });
+        await redis.set(cacheKey, JSON.stringify(result.rows[0]), { ex: TTL.MEDIUM });
         res.json(result.rows[0]);
     } catch (error) {
         console.error(error);
