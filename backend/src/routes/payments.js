@@ -24,18 +24,22 @@ router.use(auth, blockViewerWrites);
 
 // ─── Helper: clean and parse amount string ────────────────────────────────────
 function parseAmount(raw) {
+    if (!raw || raw.trim() === '') {
+        return 0;
+    }
     if (typeof raw === 'string') {
         raw = raw.replace(/,/g, '').replace(/[^0-9.]/g, '');
         const parts = raw.split('.');
         if (parts.length > 2) raw = parts[0] + '.' + parts.slice(1).join('');
     }
-    return parseFloat(raw);
+    const amount = parseFloat(raw);
+    return isNaN(amount) ? 0 : amount;
 }
 
 // ─── Helper: apply payment to oldest unpaid bills ────────────────────────────
 async function applyPaymentToBills(tenantId, amount, ownerId) {
     const paymentAmount = parseFloat(amount);
-    if (isNaN(paymentAmount) || paymentAmount <= 0) return;
+    if (isNaN(paymentAmount) || paymentAmount < 0) return;
 
     const client = await pool.connect();
     try {
@@ -211,7 +215,7 @@ router.post('/', async (req, res) => {
         }
 
         const numericAmount = parseAmount(amount);
-        if (isNaN(numericAmount) || numericAmount <= 0) {
+        if (isNaN(numericAmount) || numericAmount < 0) {
             return res.status(400).json({ error: 'Invalid amount: ' + amount });
         }
 
@@ -247,7 +251,7 @@ router.put('/:id', async (req, res) => {
         if (!payment) return res.status(404).json({ error: 'Payment not found' });
 
         const numericAmount = parseAmount(amount);
-        if (isNaN(numericAmount) || numericAmount <= 0) {
+        if (isNaN(numericAmount) || numericAmount < 0) {
             return res.status(400).json({ error: 'Invalid amount' });
         }
 
@@ -466,7 +470,7 @@ router.post('/import', upload.single('csvFile'), async (req, res) => {
                 const tenantId = tenantResult.rows[0].id;
                 const amount = parseAmount(rowData['amount']);
                 
-                if (isNaN(amount) || amount <= 0) {
+                if (isNaN(amount) || amount < 0) {
                     results.skipped++;
                     results.errors.push(`Row ${i + 1}: Invalid amount "${rowData['amount']}"`);
                     continue;

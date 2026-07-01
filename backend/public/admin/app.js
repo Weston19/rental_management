@@ -4343,9 +4343,9 @@ async function renderPayments() {
             <div class="skeleton" style="width:180px; height:40px; margin-left:10px;"></div>
         </div>
         <div class="cards" id="summaryCards" style="margin-bottom:20px;">
-            <div class="card"><h4>Total Payments</h4><div class="skeleton" style="width:100px; height:30px; margin:0 auto;"></div></div>
-            <div class="card"><h4>Manual</h4><div class="skeleton" style="width:100px; height:30px; margin:0 auto;"></div></div>
-            <div class="card"><h4>Auto (M-Pesa)</h4><div class="skeleton" style="width:100px; height:30px; margin:0 auto;"></div></div>
+            <div class="card"><h4>Total Payments</h4><div class="value">KES 0</div></div>
+            <div class="card"><h4>Manual</h4><div class="value">KES 0</div></div>
+            <div class="card"><h4>Auto (M-Pesa)</h4><div class="value">KES 0</div></div>
         </div>
         <div class="filters">
             <div class="skeleton" style="width:200px; height:38px;"></div>
@@ -4676,7 +4676,7 @@ async function showAddPaymentModal(properties, tenants) {
                 const notes = document.getElementById('paymentNotes').value;
                 const password = document.getElementById('adminPassword').value;
                 
-                if (!tenantId || !amount || amount <= 0) {
+                if (!tenantId || amount < 0) {
                     showToast('Please select a tenant and enter a valid amount', 'error');
                     return;
                 }
@@ -4881,7 +4881,7 @@ async function editPayment(paymentId) {
             const reason = document.getElementById('editReason').value;
             const password = document.getElementById('adminPassword').value;
             
-            if (!amount || amount <= 0) {
+            if (amount < 0) {
                 showToast('Please enter a valid amount', 'error');
                 return;
             }
