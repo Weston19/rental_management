@@ -320,13 +320,79 @@ function renderMainApp(companyName) {
 async function renderDashboard() {
     const content = document.getElementById('content');
     
+    // Render skeleton first
+    content.innerHTML = `
+        <div class="dashboard-container">
+            <!-- 4 Skeleton Cards -->
+            <div class="dashboard-cards">
+                <div class="skeleton-card">
+                    <div class="skeleton skeleton-card-title"></div>
+                    <div class="skeleton skeleton-card-value"></div>
+                    <div class="skeleton skeleton-card-sub"></div>
+                </div>
+                <div class="skeleton-card">
+                    <div class="skeleton skeleton-card-title"></div>
+                    <div class="skeleton skeleton-card-value"></div>
+                    <div class="skeleton skeleton-card-sub"></div>
+                </div>
+                <div class="skeleton-card">
+                    <div class="skeleton skeleton-card-title"></div>
+                    <div class="skeleton skeleton-card-value"></div>
+                    <div class="skeleton skeleton-card-sub"></div>
+                </div>
+                <div class="skeleton-card">
+                    <div class="skeleton skeleton-card-title"></div>
+                    <div class="skeleton skeleton-card-value"></div>
+                    <div class="skeleton skeleton-card-sub"></div>
+                </div>
+            </div>
+            
+            <!-- Chart skeleton -->
+            <div class="chart-section">
+                <div class="skeleton" style="width:200px;height:16px;border-radius:4px;margin-bottom:16px;"></div>
+                <div class="chart-wrapper">
+                    <div class="skeleton" style="width:100%;height:100%;border-radius:4px;"></div>
+                </div>
+            </div>
+            
+            <!-- Property insights skeleton -->
+            <div class="property-insights" style="margin-top:20px;">
+                <div class="skeleton" style="width:150px;height:16px;border-radius:4px;margin-bottom:16px;"></div>
+                <div class="table-wrapper">
+                    <div class="skeleton-table">
+                        <div class="skeleton-table-row">
+                            <div class="skeleton skeleton-table-cell" style="flex:2;"></div>
+                            <div class="skeleton skeleton-table-cell" style="flex:1;"></div>
+                            <div class="skeleton skeleton-table-cell" style="flex:1;"></div>
+                            <div class="skeleton skeleton-table-cell" style="flex:1;"></div>
+                        </div>
+                        <div class="skeleton-table-row">
+                            <div class="skeleton skeleton-table-cell" style="flex:2;"></div>
+                            <div class="skeleton skeleton-table-cell" style="flex:1;"></div>
+                            <div class="skeleton skeleton-table-cell" style="flex:1;"></div>
+                            <div class="skeleton skeleton-table-cell" style="flex:1;"></div>
+                        </div>
+                        <div class="skeleton-table-row">
+                            <div class="skeleton skeleton-table-cell" style="flex:2;"></div>
+                            <div class="skeleton skeleton-table-cell" style="flex:1;"></div>
+                            <div class="skeleton skeleton-table-cell" style="flex:1;"></div>
+                            <div class="skeleton skeleton-table-cell" style="flex:1;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
     // Get data
-    const properties = await apiCall('/properties');
-    const allRooms = await apiCall('/rooms');
-    const allTenants = await apiCall('/tenants/all');
-    const allBills = await apiCall('/bills');
-    const allPayments = await apiCall('/payments');
-    const allExpenses = await apiCall('/financials/expenses');
+    const [properties, allRooms, allTenants, allBills, allPayments, allExpenses] = await Promise.all([
+        apiCall('/properties'),
+        apiCall('/rooms'),
+        apiCall('/tenants/all'),
+        apiCall('/bills'),
+        apiCall('/payments'),
+        apiCall('/financials/expenses')
+    ]);
     
     // Calculate arrears
     let arrearsTotal = 0;
