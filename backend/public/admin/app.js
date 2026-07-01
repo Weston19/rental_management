@@ -4489,68 +4489,113 @@ async function downloadReceipt(paymentId) {
     
     const beingPaymentOf = calculateBeingPaymentOf(payment.tenant_id, payment.amount, payment.payment_date);
     
-    const receiptHtml = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="UTF-8">
-            <title>Receipt_${payment.id}</title>
-            <style>
-                body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
-                .receipt { max-width: 400px; margin: 0 auto; border: 1px solid #ddd; padding: 20px; }
-                .header { text-align: center; margin-bottom: 20px; }
-                .company { font-size: 18px; font-weight: bold; text-align: center; }
-                .ref { text-align: right; font-size: 12px; color: #666; }
-                .date { text-align: right; font-size: 12px; color: #666; margin-top: 5px; }
-                .divider { border-top: 1px dashed #ddd; margin: 15px 0; }
-                .row { display: flex; justify-content: flex-start; margin: 8px 0; }
-                .row span:first-child { width: 120px; font-weight: bold; }
-                .total-row { font-weight: bold; margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd; }
-                .footer { text-align: center; font-size: 10px; color: #888; margin-top: 20px; }
-                table { width: 100%; border-collapse: collapse; margin: 10px 0; }
-                th, td { text-align: left; padding: 5px 0; }
-                td:last-child { text-align: right; }
-            </style>
-        </head>
-        <body>
-            <div class="receipt">
-                <div class="ref">Ref: RCPT-${payment.id}</div>
-                <div class="date">Date: ${formatDate(payment.payment_date)}</div>
-                <div class="header">
-                    <div class="company">${escapeHtml(companyName)}</div>
-                </div>
-                <div class="divider"></div>
-                <div class="row"><span>Paid By:</span><span>${escapeHtml(tenant.first_name)} ${escapeHtml(tenant.last_name)}</span></div>
-                <div class="row"><span>Account NO:</span><span>${escapeHtml(accountNumber)}</span></div>
-                <div class="row"><span>Property:</span><span>${escapeHtml(payment.property_name)}</span></div>
-                <div class="divider"></div>
-                <table>
-                    <thead><tr><th>ITEM</th><th>Total</th></tr></thead>
-                    <tbody>
-                        <tr><td>${payment.payment_type.toUpperCase()}</td><td>KES ${formatNumber(payment.amount)}</td></tr>
-                    </tbody>
-                </table>
-                <div class="row total-row"><span>Total:</span><span>KES ${formatNumber(payment.amount)}</span></div>
-                <div class="row"><span>Total Paid:</span><span>KES ${formatNumber(payment.amount)}</span></div>
-                <div class="row"><span>Current Balance:</span><span>${balanceDisplay}</span></div>
-                <div class="divider"></div>
-                <div class="row"><span>Being Payment of:</span><span>${beingPaymentOf}</span></div>
-                <div class="divider"></div>
-                <div class="footer">This receipt was created by computer and is valid without signature and seal.</div>
-            </div>
-        </body>
-        </html>
-    `;
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF('p', 'mm', [80, 150]); // Receipt size
     
-    const blob = new Blob([receiptHtml], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Receipt_${payment.id}.html`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    let yPosition = 10;
+    
+    // Ref and Date
+    doc.setFontSize(8);
+    doc.text(`Ref: RCPT-${payment.id}`, 65, yPosition, { align: 'right' });
+    yPosition += 5;
+    doc.text(`Date: ${formatDate(payment.payment_date)}`, 65, yPosition, { align: 'right' });
+    yPosition += 10;
+    
+    // Company name
+    doc.setFontSize(16);
+    doc.setFont(undefined, 'bold');
+    doc.text(companyName, 40, yPosition, { align: 'center' });
+    yPosition += 10;
+    
+    // Divider
+    doc.setLineWidth(0.5);
+    doc.setDrawColor(150, 150, 150);
+    doc.setLineDash([2, 2]);
+    doc.line(10, yPosition, 70, yPosition);
+    doc.setLineDash([]);
+    yPosition += 8;
+    
+    // Tenant details
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'bold');
+    doc.text('Paid By:', 10, yPosition);
+    doc.setFont(undefined, 'normal');
+    doc.text(`${tenant.first_name} ${tenant.last_name}`, 30, yPosition);
+    yPosition += 6;
+    
+    doc.setFont(undefined, 'bold');
+    doc.text('Account NO:', 10, yPosition);
+    doc.setFont(undefined, 'normal');
+    doc.text(accountNumber, 30, yPosition);
+    yPosition += 6;
+    
+    doc.setFont(undefined, 'bold');
+    doc.text('Property:', 10, yPosition);
+    doc.setFont(undefined, 'normal');
+    doc.text(payment.property_name, 30, yPosition);
+    yPosition += 8;
+    
+    // Divider
+    doc.setLineDash([2, 2]);
+    doc.line(10, yPosition, 70, yPosition);
+    doc.setLineDash([]);
+    yPosition += 8;
+    
+    // Table
+    doc.setFont(undefined, 'bold');
+    doc.text('ITEM', 10, yPosition);
+    doc.text('Total', 65, yPosition, { align: 'right' });
+    yPosition += 6;
+    doc.setLineWidth(0.3);
+    doc.line(10, yPosition, 70, yPosition);
+    yPosition += 5;
+    
+    doc.setFont(undefined, 'normal');
+    doc.text(payment.payment_type.toUpperCase(), 10, yPosition);
+    doc.text(`KES ${formatNumber(payment.amount)}`, 65, yPosition, { align: 'right' });
+    yPosition += 10;
+    
+    // Totals
+    doc.setLineWidth(0.5);
+    doc.line(10, yPosition, 70, yPosition);
+    yPosition += 5;
+    
+    doc.setFont(undefined, 'bold');
+    doc.text('Total:', 10, yPosition);
+    doc.text(`KES ${formatNumber(payment.amount)}`, 65, yPosition, { align: 'right' });
+    yPosition += 6;
+    
+    doc.setFont(undefined, 'normal');
+    doc.text('Total Paid:', 10, yPosition);
+    doc.text(`KES ${formatNumber(payment.amount)}`, 65, yPosition, { align: 'right' });
+    yPosition += 6;
+    
+    doc.text('Current Balance:', 10, yPosition);
+    doc.text(balanceDisplay, 65, yPosition, { align: 'right' });
+    yPosition += 8;
+    
+    // Divider
+    doc.setLineDash([2, 2]);
+    doc.line(10, yPosition, 70, yPosition);
+    doc.setLineDash([]);
+    yPosition += 8;
+    
+    // Being payment of
+    doc.text('Being Payment of:', 10, yPosition);
+    doc.text(beingPaymentOf, 30, yPosition);
+    yPosition += 8;
+    
+    // Divider
+    doc.setLineDash([2, 2]);
+    doc.line(10, yPosition, 70, yPosition);
+    doc.setLineDash([]);
+    yPosition += 10;
+    
+    // Footer
+    doc.setFontSize(7);
+    doc.text('This receipt was created by computer and is valid without signature and seal.', 40, yPosition, { align: 'center' });
+    
+    doc.save(`Receipt_${payment.id}.pdf`);
 }
 
 function calculateBeingPaymentOf(tenantId, amount, paymentDate) {
@@ -4647,38 +4692,47 @@ async function downloadPaymentsCSV() {
 async function downloadPaymentsPDF() {
     const payments = await apiCall('/payments');
     if (!payments || payments.length === 0) {
-        alert('No payments to download');
+        showToast('No payments to download', 'warning');
         return;
     }
     
-    let html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Payments Report</title><style>body{font-family:Arial;margin:20px;}table{width:100%;border-collapse:collapse;}th,td{border:1px solid #ddd;padding:8px;text-align:left;}th{background:#f5f5f5;}</style></head><body>';
-    html += '<h2>Payments Report</h2>';
-    html += `<p>Generated: ${new Date().toLocaleString()}</p>`;
-    html += '<table><thead><tr><th>Tenant</th><th>Property</th><th>Unit</th><th>Amount</th><th>Date</th><th>Type</th><th>Source</th></tr></thead><tbody>';
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
     
-    payments.forEach(p => {
-        html += `<tr>
-            <td>${p.first_name} ${p.last_name}</td>
-            <td>${p.property_name || ''}</td>
-            <td>${p.house_no || ''}</td>
-            <td>KES ${formatNumber(p.amount)}</td>
-            <td>${formatDate(p.payment_date)}</td>
-            <td>${p.payment_type}</td>
-            <td>${p.source === 'manual' ? 'Manual' : 'Auto'}</td>
-        </tr>`;
+    // Header
+    doc.setFontSize(18);
+    doc.text('Payments Report', 14, 22);
+    doc.setFontSize(10);
+    doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 30);
+    
+    // Table data
+    const tableData = payments.map(p => [
+        `${p.first_name} ${p.last_name}`,
+        p.property_name || '',
+        p.house_no || '',
+        `KES ${formatNumber(p.amount)}`,
+        formatDate(p.payment_date),
+        p.payment_type,
+        p.source === 'manual' ? 'Manual' : 'Auto'
+    ]);
+    
+    // Add table
+    doc.autoTable({
+        head: [['Tenant', 'Property', 'Unit', 'Amount', 'Date', 'Type', 'Source']],
+        body: tableData,
+        startY: 35,
+        theme: 'striped',
+        headStyles: {
+            fillColor: [30, 58, 95],
+            textColor: 255,
+            fontSize: 10
+        },
+        bodyStyles: {
+            fontSize: 9
+        }
     });
     
-    html += '</tbody></table></body></html>';
-    
-    const blob = new Blob([html], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `payments_report_${new Date().toISOString().split('T')[0]}.html`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    doc.save(`payments_report_${new Date().toISOString().split('T')[0]}.pdf`);
 }
 
 // ========== SHOW ADD EXPENSE MODAL ==========
@@ -5353,7 +5407,7 @@ async function downloadSummariesCSV() {
 async function downloadSummariesPDF() {
     const summaries = await apiCall('/financials/summaries');
     if (!summaries || summaries.length === 0) {
-        alert('No summaries to download');
+        showToast('No summaries to download', 'warning');
         return;
     }
     
@@ -5365,108 +5419,163 @@ async function downloadSummariesPDF() {
     const monthStr = new Date(summary.month_year).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
     const companyName = localStorage.getItem('companyName') || 'Rental Management System';
     
-    let html = `<!DOCTYPE html>
-    <html>
-    <head>
-        <meta charset="UTF-8">
-        <title>Financial Summary - ${summary.property_name}</title>
-        <style>
-            body { font-family: Arial, sans-serif; margin: 40px; }
-            .summary-page { max-width: 800px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; }
-            .header { text-align: center; margin-bottom: 30px; }
-            .header .company { font-size: 22px; font-weight: bold; color: #1e3a5f; }
-            .header .month { font-size: 16px; color: #666; margin-top: 5px; }
-            .header .attention { font-size: 14px; color: #333; margin-top: 5px; }
-            .property-info { margin-bottom: 20px; padding: 10px; background: #f8f8f8; border-radius: 4px; }
-            .property-info p { margin: 5px 0; }
-            table { width: 100%; border-collapse: collapse; margin: 15px 0; }
-            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-            th { background: #f0f0f0; font-weight: bold; }
-            .totals { margin: 15px 0; padding: 10px; background: #f8f8f8; border-radius: 4px; }
-            .totals .row { display: flex; justify-content: space-between; padding: 5px 0; }
-            .totals .row.total { font-weight: bold; border-top: 1px solid #ddd; margin-top: 5px; padding-top: 5px; }
-            .footer { margin-top: 30px; padding-top: 15px; border-top: 1px solid #ddd; display: flex; justify-content: space-between; }
-            .footer .signature { text-align: center; }
-            .footer .signature .line { width: 200px; border-bottom: 1px solid #333; margin-top: 30px; }
-            .seal-text { text-align: center; font-size: 10px; color: #888; margin-top: 20px; }
-        </style>
-    </head>
-    <body>
-        <div class="summary-page">
-            <div class="header">
-                <div class="company">${escapeHtml(companyName)}</div>
-                <div class="month">${monthStr}</div>
-                <div class="attention"><strong>ATTENTION:</strong> ${escapeHtml(summary.landlord_name || '-')}</div>
-                <div class="property"><strong>Property:</strong> ${escapeHtml(summary.property_name || '-')}</div>
-            </div>
-            
-            <h4>RENT RECEIVED</h4>
-            <table>
-                <thead><tr><th>HSE NO.</th><th>Rent Received</th></tr></thead>
-                <tbody>
-                    ${summary.rooms && summary.rooms.map(room => `
-                        <tr>
-                            <td>${escapeHtml(room.house_no)}</td>
-                            <td>${room.status === 'VACANT' ? 'VACANT' : (room.status === 'N.P' ? 'N.P' : `KES ${formatNumber(room.amount)}`)}</td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            </table>
-            
-            <div class="totals">
-                <div class="row"><span>COLLECTIONS AT THE OFFICE:</span><span>KES ${formatNumber(summary.collections_office)}</span></div>
-                <div class="row"><span>COLLECTIONS BY LANDLORD:</span><span>KES ${formatNumber(summary.collections_landlord)}</span></div>
-                <div class="row total"><span>TOTAL COLLECTIONS:</span><span>KES ${formatNumber(summary.total_collections)}</span></div>
-            </div>
-            
-            <h4>EXPENSES</h4>
-            <table>
-                <thead><tr><th>Expense Type</th><th>Amount</th></tr></thead>
-                <tbody>
-                    ${summary.expenses && summary.expenses.map(exp => `
-                        <tr><td>${escapeHtml(exp.category)}</td><td>KES ${formatNumber(exp.amount)}</td></tr>
-                    `).join('')}
-                    ${(!summary.expenses || summary.expenses.length === 0) ? '<tr><td colspan="2">No expenses recorded</td></tr>' : ''}
-                </tbody>
-            </table>
-            
-            <div class="totals">
-                <div class="row"><span>TOTAL EXPENSES:</span><span>KES ${formatNumber(summary.total_expenses)}</span></div>
-                <div class="row"><span>COMMISSION PAYABLE:</span><span>KES ${formatNumber(summary.commission_payable)}</span></div>
-                <div class="row"><span>TOTAL DEDUCTIONS:</span><span>KES ${formatNumber(summary.total_deductions)}</span></div>
-                <div class="row total"><span>NET RENT:</span><span>KES ${formatNumber(summary.net_rent)}</span></div>
-                <div class="row total"><span>TOTAL NET RENT:</span><span>KES ${formatNumber(summary.total_net_rent)}</span></div>
-            </div>
-            
-            <div class="footer">
-                <div class="signature">
-                    <div>DEPOSITED ON: ${summary.deposited_date ? formatDate(summary.deposited_date) : '-'}</div>
-                </div>
-                <div class="signature">
-                    <div>PROPERTY MANAGER</div>
-                    <div class="line"></div>
-                </div>
-                <div class="signature">
-                    <div>LANDLORD</div>
-                    <div class="line"></div>
-                </div>
-            </div>
-            
-            <div class="seal-text">This summary was created by computer and is valid without signature and seal.</div>
-        </div>
-    </body>
-    </html>`;
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
     
-    // Create download
-    const blob = new Blob([html], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Financial_Summary_${summary.property_name}_${monthStr.replace(/\s/g, '_')}.html`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    // Header
+    doc.setFontSize(18);
+    doc.text(companyName, 14, 22);
+    doc.setFontSize(12);
+    doc.text(monthStr, 14, 30);
+    doc.setFontSize(10);
+    doc.text(`ATTENTION: ${summary.landlord_name || '-'}`, 14, 37);
+    doc.text(`Property: ${summary.property_name || '-'}`, 14, 44);
+    
+    let yPosition = 55;
+    
+    // Rent Received Section
+    doc.setFontSize(12);
+    doc.text('RENT RECEIVED', 14, yPosition);
+    yPosition += 8;
+    
+    const rentTableData = [];
+    if (summary.rooms && summary.rooms.length > 0) {
+        summary.rooms.forEach(room => {
+            rentTableData.push([
+                room.house_no,
+                room.status === 'VACANT' ? 'VACANT' : (room.status === 'N.P' ? 'N.P' : `KES ${formatNumber(room.amount)}`)
+            ]);
+        });
+    }
+    
+    if (rentTableData.length > 0) {
+        doc.autoTable({
+            head: [['HSE NO.', 'Rent Received']],
+            body: rentTableData,
+            startY: yPosition,
+            theme: 'grid',
+            headStyles: {
+                fillColor: [30, 58, 95],
+                textColor: 255,
+                fontSize: 10
+            },
+            bodyStyles: {
+                fontSize: 9
+            }
+        });
+        yPosition = doc.lastAutoTable.finalY + 10;
+    } else {
+        doc.setFontSize(10);
+        doc.text('No rooms recorded', 14, yPosition);
+        yPosition += 10;
+    }
+    
+    // Collections Totals
+    doc.setFontSize(10);
+    doc.text('COLLECTIONS AT THE OFFICE:', 14, yPosition);
+    yPosition += 5;
+    doc.text(`KES ${formatNumber(summary.collections_office)}`, 140, yPosition);
+    yPosition += 7;
+    
+    doc.text('COLLECTIONS BY LANDLORD:', 14, yPosition);
+    yPosition += 5;
+    doc.text(`KES ${formatNumber(summary.collections_landlord)}`, 140, yPosition);
+    yPosition += 7;
+    
+    doc.setFontSize(11);
+    doc.setFont(undefined, 'bold');
+    doc.text('TOTAL COLLECTIONS:', 14, yPosition);
+    yPosition += 5;
+    doc.text(`KES ${formatNumber(summary.total_collections)}`, 140, yPosition);
+    yPosition += 12;
+    
+    // Expenses Section
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'normal');
+    doc.text('EXPENSES', 14, yPosition);
+    yPosition += 8;
+    
+    const expenseTableData = [];
+    if (summary.expenses && summary.expenses.length > 0) {
+        summary.expenses.forEach(exp => {
+            expenseTableData.push([
+                exp.category,
+                `KES ${formatNumber(exp.amount)}`
+            ]);
+        });
+    }
+    
+    if (expenseTableData.length > 0) {
+        doc.autoTable({
+            head: [['Expense Type', 'Amount']],
+            body: expenseTableData,
+            startY: yPosition,
+            theme: 'grid',
+            headStyles: {
+                fillColor: [30, 58, 95],
+                textColor: 255,
+                fontSize: 10
+            },
+            bodyStyles: {
+                fontSize: 9
+            }
+        });
+        yPosition = doc.lastAutoTable.finalY + 10;
+    } else {
+        doc.setFontSize(10);
+        doc.text('No expenses recorded', 14, yPosition);
+        yPosition += 10;
+    }
+    
+    // Expenses Totals
+    doc.setFontSize(10);
+    doc.text('TOTAL EXPENSES:', 14, yPosition);
+    yPosition += 5;
+    doc.text(`KES ${formatNumber(summary.total_expenses)}`, 140, yPosition);
+    yPosition += 7;
+    
+    doc.text('COMMISSION PAYABLE:', 14, yPosition);
+    yPosition += 5;
+    doc.text(`KES ${formatNumber(summary.commission_payable)}`, 140, yPosition);
+    yPosition += 7;
+    
+    doc.text('TOTAL DEDUCTIONS:', 14, yPosition);
+    yPosition += 5;
+    doc.text(`KES ${formatNumber(summary.total_deductions)}`, 140, yPosition);
+    yPosition += 7;
+    
+    doc.setFontSize(11);
+    doc.setFont(undefined, 'bold');
+    doc.text('NET RENT:', 14, yPosition);
+    yPosition += 5;
+    doc.text(`KES ${formatNumber(summary.net_rent)}`, 140, yPosition);
+    yPosition += 7;
+    
+    doc.text('TOTAL NET RENT:', 14, yPosition);
+    yPosition += 5;
+    doc.text(`KES ${formatNumber(summary.total_net_rent)}`, 140, yPosition);
+    yPosition += 15;
+    
+    // Footer
+    doc.setFont(undefined, 'normal');
+    doc.setFontSize(10);
+    doc.text(`DEPOSITED ON: ${summary.deposited_date ? formatDate(summary.deposited_date) : '-'}`, 14, yPosition);
+    yPosition += 25;
+    
+    // Signatures
+    doc.line(14, yPosition, 60, yPosition);
+    doc.text('PROPERTY MANAGER', 14, yPosition + 5);
+    
+    doc.line(100, yPosition, 146, yPosition);
+    doc.text('LANDLORD', 100, yPosition + 5);
+    
+    yPosition += 25;
+    
+    doc.setFontSize(8);
+    doc.text('This summary was created by computer and is valid without signature and seal.', 14, yPosition);
+    
+    // Save PDF
+    doc.save(`Financial_Summary_${summary.property_name}_${monthStr.replace(/\s/g, '_')}.pdf`);
 }
 
 // Show Summary Selection Modal
@@ -5796,7 +5905,7 @@ tenants.forEach(t => {
     // ========== DOWNLOAD TENANT LIST CSV ==========
 async function downloadTenantReportCSVFinancial() {
     if (!window.tenantReportData) {
-        alert('Please generate a report first');
+        showToast('Please generate a report first', 'warning');
         return;
     }
     
@@ -5830,7 +5939,7 @@ async function downloadTenantReportCSVFinancial() {
 // ========== DOWNLOAD TENANT LIST PDF ==========
 async function downloadTenantReportPDFFinancial() {
     if (!window.tenantReportData) {
-        alert('Please generate a report first');
+        showToast('Please generate a report first', 'warning');
         return;
     }
     
@@ -5839,86 +5948,78 @@ async function downloadTenantReportPDFFinancial() {
     const fileName = prompt('Enter file name:', 'tenant_list');
     if (fileName === null) return;
     
-    let html = `<!DOCTYPE html>
-    <html>
-    <head>
-        <meta charset="UTF-8">
-        <title>Tenant List Report</title>
-        <style>
-            body{font-family:Arial;margin:20px;}
-            table{width:100%;border-collapse:collapse;margin:10px 0;font-size:12px;}
-            th,td{border:1px solid #ddd;padding:6px;text-align:left;}
-            th{background:#f5f5f5;}
-            .property-section{margin-bottom:30px;page-break-inside:avoid;}
-            .floor-title{background:#e0e0e0;padding:5px;margin-top:15px;}
-            .red-text{color:#e74c3c;}
-            .green-text{color:#27ae60;}
-        </style>
-    </head>
-    <body>`;
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF('l', 'mm', 'a4'); // Landscape mode for more space
     
-    html += `<h2>Tenant List Report</h2>`;
-    html += `<p>Generated: ${new Date().toLocaleString()}</p>`;
+    // Header
+    doc.setFontSize(18);
+    doc.text('Tenant List Report', 14, 20);
+    doc.setFontSize(10);
+    doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 28);
+    
+    let yPosition = 35;
     
     for (const propId in grouped) {
         const prop = grouped[propId];
-        html += `<div class="property-section">
-            <h3>${escapeHtml(prop.manager_name)}</h3>
-            <p>${escapeHtml(prop.property_name)}</p>`;
+        
+        // Property header
+        doc.setFontSize(14);
+        doc.text(prop.manager_name, 14, yPosition);
+        yPosition += 5;
+        doc.setFontSize(10);
+        doc.text(prop.property_name, 14, yPosition);
+        yPosition += 8;
         
         for (const floorName in prop.floors) {
-            html += `<div class="floor-title"><strong>${floorName}</strong></div>`;
-            html += `<table>
-                <thead>
-                    <tr>
-                        <th>NAME</th>
-                        <th>A/C NO</th>
-                        <th>MOB NO.</th>
-                        <th>AMNT PAYA</th>
-                        <th>RENT</th>
-                        <th>ARREARS</th>
-                        <th>OVERPAYMENT</th>
-                        <th>DEP BAL</th>
-                        <th>PENALTY</th>
-                    </tr>
-                </thead>
-                <tbody>`;
+            // Floor header
+            doc.setFillColor(220, 220, 220);
+            doc.rect(14, yPosition, 270, 8, 'F');
+            doc.setFontSize(11);
+            doc.text(floorName, 16, yPosition + 6);
+            yPosition += 12;
             
-            prop.floors[floorName].forEach(t => {
-                const arrearsColor = t.arrears > 0 ? 'red-text' : '';
-                const overpaymentColor = t.overpayment > 0 ? 'green-text' : '';
-                const depositColor = t.deposit_balance > 0 ? 'red-text' : '';
-                const penaltyColor = t.penalty > 0 ? 'red-text' : '';
-                
-                html += `<tr>
-                    <td>${escapeHtml(t.first_name || '')} ${escapeHtml(t.last_name || '')}</td>
-                    <td>${t.room_number}</td>
-                    <td>${t.phone}</td>
-                    <td>KES ${formatNumber(t.rent_payable)}</td>
-                    <td>KES ${formatNumber(t.rent_paid)}</td>
-                    <td class="${arrearsColor}">KES ${formatNumber(t.arrears)}</td>
-                    <td class="${overpaymentColor}">KES ${formatNumber(t.overpayment)}</td>
-                    <td class="${depositColor}">KES ${formatNumber(t.deposit_balance)}</td>
-                    <td class="${penaltyColor}">KES ${formatNumber(t.penalty)}</td>
-                </tr>`;
+            // Prepare table data for this floor
+            const tableData = prop.floors[floorName].map(t => [
+                `${t.first_name || ''} ${t.last_name || ''}`,
+                t.room_number,
+                t.phone,
+                `KES ${formatNumber(t.rent_payable)}`,
+                `KES ${formatNumber(t.rent_paid)}`,
+                `KES ${formatNumber(t.arrears)}`,
+                `KES ${formatNumber(t.overpayment)}`,
+                `KES ${formatNumber(t.deposit_balance)}`,
+                `KES ${formatNumber(t.penalty)}`
+            ]);
+            
+            // Add table
+            doc.autoTable({
+                head: [['NAME', 'A/C NO', 'MOB NO.', 'AMNT PAYA', 'RENT', 'ARREARS', 'OVERPAYMENT', 'DEP BAL', 'PENALTY']],
+                body: tableData,
+                startY: yPosition,
+                theme: 'grid',
+                headStyles: {
+                    fillColor: [30, 58, 95],
+                    textColor: 255,
+                    fontSize: 8
+                },
+                bodyStyles: {
+                    fontSize: 7
+                }
             });
             
-            html += `</tbody></table>`;
+            yPosition = doc.lastAutoTable.finalY + 10;
+            
+            // Check if we need a new page
+            if (yPosition > 190) {
+                doc.addPage();
+                yPosition = 20;
+            }
         }
-        html += `</div>`;
+        
+        yPosition += 10;
     }
     
-    html += `</body></html>`;
-    
-    const blob = new Blob([html], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${fileName}.html`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    doc.save(`${fileName}.pdf`);
 }
 }
 
