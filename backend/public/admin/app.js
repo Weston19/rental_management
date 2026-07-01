@@ -2024,9 +2024,53 @@ function showAddTemplateModal() {
 // ========== NOTIFICATIONS ==========
 async function renderNotifications() {
     const content = document.getElementById('content');
-    const balanceData = await apiCall('/settings/sms-balance');
+    
+    content.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
+            <div>
+                <h2>Notifications</h2>
+                <p style="color:#666; font-size:13px;">💰 SMS Balance: <div class="skeleton" style="width:80px; height:16px; display:inline-block;"></div></p>
+            </div>
+            <div class="skeleton" style="width:140px; height:40px;"></div>
+        </div>
+        <div class="filters" style="margin-bottom:15px;">
+            <div class="skeleton" style="width:180px; height:38px;"></div>
+            <div class="skeleton" style="width:180px; height:38px;"></div>
+        </div>
+        <div id="messagesList">
+            <div class="table-wrapper">
+                <div class="skeleton-table">
+                    <div class="skeleton-table-row" style="background:#e9ecef;">
+                        <div class="skeleton skeleton-table-cell" style="flex:2; height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:2; height:16px;"></div>
+                    </div>
+                    <div class="skeleton-table-row">
+                        <div class="skeleton skeleton-table-cell" style="flex:2; height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:2; height:14px;"></div>
+                    </div>
+                    <div class="skeleton-table-row">
+                        <div class="skeleton skeleton-table-cell" style="flex:2; height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:2; height:14px;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    const [balanceData, messages] = await Promise.all([
+        apiCall('/settings/sms-balance'),
+        apiCall('/messages')
+    ]);
     const balance = balanceData?.balance || '0.00';
-    const messages = await apiCall('/messages');
     
     content.innerHTML = `
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
@@ -2046,7 +2090,19 @@ async function renderNotifications() {
             </select>
             <input type="text" id="msgSearch" class="filter-input" placeholder="Search...">
         </div>
-        <div id="messagesList" class="loading">Loading messages...</div>
+        <div id="messagesList">
+            <div class="table-wrapper">
+                <div class="skeleton-table">
+                    <div class="skeleton-table-row" style="background:#e9ecef;">
+                        <div class="skeleton skeleton-table-cell" style="flex:2; height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:2; height:16px;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
     `;
     
     document.getElementById('composeMsgBtn').onclick = () => showComposeModal();
@@ -2307,7 +2363,50 @@ window.deleteMessage = async (id) => {
 // ========== PROPERTIES ==========
 async function renderProperties() {
     const content = document.getElementById('content');
-    content.innerHTML = `<button class="btn-add" id="addPropertyBtn">+ Add Property</button><div id="propertyList" class="loading">Loading properties...</div><div id="pagination-container"></div>`;
+    content.innerHTML = `
+        <button class="btn-add" id="addPropertyBtn">+ Add Property</button>
+        <div id="propertyList">
+            <div class="cards">
+                <div class="card"><h4>Total Property</h4><div class="skeleton" style="width:60px;height:28px;margin:0 auto;"></div></div>
+                <div class="card"><h4>Total Rooms</h4><div class="skeleton" style="width:60px;height:28px;margin:0 auto;"></div></div>
+                <div class="card"><h4>Occupied Rooms</h4><div class="skeleton" style="width:60px;height:28px;margin:0 auto;"></div></div>
+                <div class="card"><h4>Estimated Monthly Rent</h4><div class="skeleton" style="width:100px;height:28px;margin:0 auto;"></div></div>
+            </div>
+            <div class="table-wrapper">
+                <div class="skeleton-table">
+                    <div class="skeleton-table-row" style="background:#e9ecef;">
+                        <div class="skeleton skeleton-table-cell" style="flex:2;height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:16px;"></div>
+                    </div>
+                    <div class="skeleton-table-row">
+                        <div class="skeleton skeleton-table-cell" style="flex:2;height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:14px;"></div>
+                    </div>
+                    <div class="skeleton-table-row">
+                        <div class="skeleton skeleton-table-cell" style="flex:2;height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:14px;"></div>
+                    </div>
+                    <div class="skeleton-table-row">
+                        <div class="skeleton skeleton-table-cell" style="flex:2;height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:14px;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div id="pagination-container"></div>
+    `;
 
     try {
         const properties = await apiCall('/properties');
@@ -2548,7 +2647,54 @@ function showAddPropertyModal() {
 // ========== ROOMS ==========
 async function renderRooms() {
     const content = document.getElementById('content');
-    content.innerHTML = '<div class="loading">Loading rooms...</div>';
+    content.innerHTML = `
+        <div class="filters">
+            <div class="skeleton" style="width:180px;height:38px;"></div>
+            <div class="skeleton" style="width:180px;height:38px;"></div>
+            <div class="skeleton" style="width:180px;height:38px;"></div>
+            <div class="skeleton" style="width:180px;height:38px;"></div>
+        </div>
+        <button class="btn-add" id="addRoomBtn">+ Add Room</button>
+        <div id="roomsList">
+            <div class="table-wrapper">
+                <div class="skeleton-table">
+                    <div class="skeleton-table-row" style="background:#e9ecef;">
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:16px;"></div>
+                    </div>
+                    <div class="skeleton-table-row">
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:14px;"></div>
+                    </div>
+                    <div class="skeleton-table-row">
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:14px;"></div>
+                    </div>
+                    <div class="skeleton-table-row">
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:14px;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div id="pagination-container"></div>
+    `;
     
     const properties = await apiCall('/properties');
     if (!properties || properties.length === 0) {
@@ -2556,7 +2702,28 @@ async function renderRooms() {
         return;
     }
     
-    content.innerHTML = `<div class="filters"><select id="propertyFilter"><option value="">All Properties</option>${properties.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')}</select><input type="text" id="filterRoomName" placeholder="Room Name"><select id="filterType"><option value="">All Types</option><option>single</option><option>studio</option><option>shop</option><option>bedsitter</option><option>1 bedroom</option><option>2 bedroom</option><option>3 bedroom</option><option>4 bedroom</option><option>5 bedroom</option></select><select id="filterStatus"><option value="">All Status</option><option value="vacant">Vacant</option><option value="occupied">Occupied</option></select></div><button class="btn-add" id="addRoomBtn">+ Add Room</button><div id="roomsList" class="loading">Loading rooms...</div><div id="pagination-container"></div>`;
+    content.innerHTML = `<div class="filters"><select id="propertyFilter"><option value="">All Properties</option>${properties.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')}</select><input type="text" id="filterRoomName" placeholder="Room Name"><select id="filterType"><option value="">All Types</option><option>single</option><option>studio</option><option>shop</option><option>bedsitter</option><option>1 bedroom</option><option>2 bedroom</option><option>3 bedroom</option><option>4 bedroom</option><option>5 bedroom</option></select><select id="filterStatus"><option value="">All Status</option><option value="vacant">Vacant</option><option value="occupied">Occupied</option></select></div><button class="btn-add" id="addRoomBtn">+ Add Room</button><div id="roomsList">
+            <div class="table-wrapper">
+                <div class="skeleton-table">
+                    <div class="skeleton-table-row" style="background:#e9ecef;">
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:16px;"></div>
+                    </div>
+                    <div class="skeleton-table-row">
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:14px;"></div>
+                    </div>
+                </div>
+            </div>
+        </div><div id="pagination-container"></div>`;
     
     let rooms = await apiCall('/rooms');
     if (!rooms) {
@@ -2748,9 +2915,67 @@ function showAddRoomModal(properties) {
 async function renderTenants() {
     const content = document.getElementById('content');
     
-    const allTenantsData = await apiCall('/tenants/all');
-    const activeTenants = allTenantsData ? allTenantsData.filter(t => !t.is_deleted) : [];
+    content.innerHTML = `
+        <div style="display:flex; justify-content:flex-end; margin-bottom:15px;">
+            <button class="btn-add" id="addTenantBtn">+ Add Tenant</button>
+        </div>
+        <div class="filter-row">
+            <div class="skeleton" style="width:250px;height:38px;"></div>
+            <div class="skeleton" style="width:120px;height:38px;"></div>
+            <div class="skeleton" style="width:180px;height:38px;"></div>
+            <div class="skeleton" style="width:120px;height:24px;"></div>
+        </div>
+        <div id="tenantsList">
+            <div class="table-wrapper">
+                <div class="skeleton-table">
+                    <div class="skeleton-table-row" style="background:#e9ecef;">
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:16px;"></div>
+                    </div>
+                    <div class="skeleton-table-row">
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:14px;"></div>
+                    </div>
+                    <div class="skeleton-table-row">
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:14px;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div id="pagination-container"></div>
+    `;
     
+    const [properties, allTenants, allBills] = await Promise.all([
+        apiCall('/properties'),
+        apiCall('/tenants/all'),
+        apiCall('/bills/all')
+    ]);
+    
+    if(!allTenants) {
+        document.getElementById('tenantsList').innerHTML = '<div class="empty-state">Failed to load tenants.</div>';
+        return;
+    }
+    
+    const activeTenants = allTenants.filter(t => !t.is_deleted);
     content.innerHTML = `
         <div style="display:flex; justify-content:flex-end; margin-bottom:15px;">
             <button class="btn-add" id="addTenantBtn">+ Add Tenant</button>
@@ -2767,31 +2992,41 @@ async function renderTenants() {
             </select>
             <div class="tenant-counter" id="tenantCounter">Total: ${activeTenants.length}</div>
         </div>
-        <div id="tenantsList" class="loading">Loading tenants...</div>
+        <div id="tenantsList">
+            <div class="table-wrapper">
+                <div class="skeleton-table">
+                    <div class="skeleton-table-row" style="background:#e9ecef;">
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1;height:16px;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
         <div id="pagination-container"></div>
     `;
     
-    const properties = await apiCall('/properties');
     if(properties){
         const filterSelect = document.getElementById('propertyFilterTenant');
         properties.forEach(p => { filterSelect.innerHTML += `<option value="${p.id}">${escapeHtml(p.name)}</option>`; });
     }
     
-    let allTenants = await apiCall('/tenants/all');
-    if(!allTenants) {
-        document.getElementById('tenantsList').innerHTML = '<div class="empty-state">Failed to load tenants.</div>';
-        return;
-    }
-    
-    // Calculate balance for each tenant
+    // Calculate balances using allBills (no N+1!)
     for (const tenant of allTenants) {
-        try {
-            const balanceResult = await apiCall(`/bills/tenant-balance/${tenant.id}`);
-            tenant.balance = balanceResult?.balance || 0;
-        } catch (error) {
-            console.error(`Error fetching balance for tenant ${tenant.id}:`, error);
-            tenant.balance = 0;
+        let balance = 0;
+        const tenantBills = allBills ? allBills.filter(b => b.tenant_id === tenant.id) : [];
+        
+        for (const bill of tenantBills) {
+            const totalBill = bill.total_bill || 0;
+            const totalPaid = bill.total_paid || 0;
+            balance += (totalBill - totalPaid);
         }
+        tenant.balance = balance;
     }
     
     let filteredTenants = allTenants.filter(t => !t.is_deleted);
@@ -3393,12 +3628,65 @@ if (result?.error) {
 async function renderBilling() {
     const content = document.getElementById('content');
     
+    // First show skeleton
+    content.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; flex-wrap:wrap; gap:10px;">
+            <div style="display:flex; gap:10px;">
+                <div class="skeleton" style="width:120px; height:40px;"></div>
+                <div class="skeleton" style="width:180px; height:40px;"></div>
+                <div class="skeleton" style="width:160px; height:40px;"></div>
+            </div>
+            <div>
+                <div class="skeleton" style="width:160px; height:40px;"></div>
+            </div>
+        </div>
+        <div class="filters">
+            <div class="skeleton" style="width:160px; height:38px;"></div>
+            <div class="skeleton" style="width:160px; height:38px;"></div>
+            <div class="skeleton" style="width:160px; height:38px;"></div>
+            <div class="skeleton" style="width:160px; height:38px;"></div>
+            <div class="skeleton" style="width:160px; height:38px;"></div>
+        </div>
+        <div id="billsList">
+            <div class="table-wrapper">
+                <div class="skeleton-table">
+                    <div class="skeleton-table-row" style="background:#e9ecef;">
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:16px;"></div>
+                    </div>
+                    <div class="skeleton-table-row">
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:14px;"></div>
+                    </div>
+                    <div class="skeleton-table-row">
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:14px;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div id="pagination-container"></div>
+    `;
+    
     // Get filter data
     const filterData = await apiCall('/bills/filters/data');
     const properties = filterData?.properties || [];
     const tenants = filterData?.tenants || [];
     const rooms = filterData?.rooms || [];
     
+    // Now show real content
     content.innerHTML = `
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; flex-wrap:wrap; gap:10px;">
             <div style="display:flex; gap:10px;">
@@ -3431,7 +3719,20 @@ async function renderBilling() {
             </select>
             <input type="month" id="filterMonth" class="filter-input" placeholder="Bill Month">
         </div>
-        <div id="billsList" class="loading">Loading bills...</div>
+        <div id="billsList">
+            <div class="table-wrapper">
+                <div class="skeleton-table">
+                    <div class="skeleton-table-row" style="background:#e9ecef;">
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:16px;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
         <div id="pagination-container"></div>
     `;
     
@@ -4034,10 +4335,71 @@ function showAwardPenaltyModal() {
 async function renderPayments() {
     const content = document.getElementById('content');
     
+    // First show skeleton
+    content.innerHTML = `
+        <div style="display:flex; justify-content:flex-end; margin-bottom:15px;">
+            <div class="skeleton" style="width:140px; height:40px;"></div>
+            <div class="skeleton" style="width:140px; height:40px; margin-left:10px;"></div>
+            <div class="skeleton" style="width:180px; height:40px; margin-left:10px;"></div>
+        </div>
+        <div class="cards" id="summaryCards" style="margin-bottom:20px;">
+            <div class="card"><h4>Total Payments</h4><div class="skeleton" style="width:100px; height:30px; margin:0 auto;"></div></div>
+            <div class="card"><h4>Manual</h4><div class="skeleton" style="width:100px; height:30px; margin:0 auto;"></div></div>
+            <div class="card"><h4>Auto (M-Pesa)</h4><div class="skeleton" style="width:100px; height:30px; margin:0 auto;"></div></div>
+        </div>
+        <div class="filters">
+            <div class="skeleton" style="width:200px; height:38px;"></div>
+            <div class="skeleton" style="width:180px; height:38px;"></div>
+            <div class="skeleton" style="width:180px; height:38px;"></div>
+            <div class="skeleton" style="width:180px; height:38px;"></div>
+            <div class="skeleton" style="width:180px; height:38px;"></div>
+            <div class="skeleton" style="width:140px; height:38px;"></div>
+            <div class="skeleton" style="width:140px; height:38px;"></div>
+        </div>
+        <div id="paymentsList">
+            <div class="table-wrapper">
+                <div class="skeleton-table">
+                    <div class="skeleton-table-row" style="background:#e9ecef;">
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:16px;"></div>
+                    </div>
+                    <div class="skeleton-table-row">
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:14px;"></div>
+                    </div>
+                    <div class="skeleton-table-row">
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:14px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:14px;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div id="pagination-container"></div>
+    `;
+    
     const filterData = await apiCall('/payments/filters/data');
     const properties = filterData?.properties || [];
     const tenants = filterData?.tenants || [];
     
+    // Now show real content with skeleton for table
     content.innerHTML = `
         <div style="display:flex; justify-content:flex-end; margin-bottom:15px;">
             <button class="btn-add" id="addPaymentBtn">+ Record Payment</button>
@@ -4045,9 +4407,9 @@ async function renderPayments() {
             <button class="btn-add" id="unassignedBtn" style="background:#f39c12; margin-left:10px;">⚠ Unassigned Payments</button>
         </div>
         <div class="cards" id="summaryCards" style="margin-bottom:20px;">
-            <div class="card"><h4>Total Payments</h4><div class="value" id="totalPayments">KES 0</div></div>
-            <div class="card"><h4>Manual</h4><div class="value" id="manualTotal">KES 0</div></div>
-            <div class="card"><h4>Auto (M-Pesa)</h4><div class="value" id="autoTotal">KES 0</div></div>
+            <div class="card"><h4>Total Payments</h4><div class="skeleton" style="width:100px; height:30px; margin:0 auto;"></div></div>
+            <div class="card"><h4>Manual</h4><div class="skeleton" style="width:100px; height:30px; margin:0 auto;"></div></div>
+            <div class="card"><h4>Auto (M-Pesa)</h4><div class="skeleton" style="width:100px; height:30px; margin:0 auto;"></div></div>
         </div>
         <div class="filters">
             <input type="text" id="searchPayment" class="filter-input" placeholder="Search tenant name/room" style="width:200px;">
@@ -4065,7 +4427,22 @@ async function renderPayments() {
             <button class="btn-add" id="downloadCSVBtn" style="background:#5cb85c;">Download CSV</button>
             <button class="btn-add" id="downloadPDFBtn" style="background:#e74c3c;">Download PDF</button>
         </div>
-        <div id="paymentsList" class="loading">Loading payments...</div>
+        <div id="paymentsList">
+            <div class="table-wrapper">
+                <div class="skeleton-table">
+                    <div class="skeleton-table-row" style="background:#e9ecef;">
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:16px;"></div>
+                        <div class="skeleton skeleton-table-cell" style="flex:1; height:16px;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
         <div id="pagination-container"></div>
     `;
     
@@ -5120,7 +5497,43 @@ async function renderSummaryContent() {
     const container = document.getElementById('financialContent');
     if (!container) return;
     
-    container.innerHTML = '<div class="loading">Loading summary...</div>';
+    container.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 8px;">
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <div class="skeleton" style="width:180px;height:38px;"></div>
+                <div class="skeleton" style="width:180px;height:38px;"></div>
+                <div class="skeleton" style="width:100px;height:38px;"></div>
+                <div class="skeleton" style="width:120px;height:38px;"></div>
+            </div>
+            <div style="display: flex; gap: 8px;">
+                <div class="skeleton" style="width:80px;height:38px;"></div>
+                <div class="skeleton" style="width:80px;height:38px;"></div>
+            </div>
+        </div>
+        <div id="summariesList">
+            <div style="background:white; border:1px solid #ced4da; padding:16px 20px; margin-bottom:20px;">
+                <div class="skeleton" style="width:200px;height:16px;margin-bottom:16px;"></div>
+                <div style="border:1px solid #ced4da;margin-bottom:16px;">
+                    <div style="display:flex;padding:8px 12px;background:#e9ecef;">
+                        <div class="skeleton" style="flex:1;height:14px;"></div>
+                        <div class="skeleton" style="flex:1;height:14px;"></div>
+                    </div>
+                    <div style="display:flex;padding:8px 12px;border-bottom:1px solid #dee2e6;">
+                        <div class="skeleton" style="flex:1;height:12px;"></div>
+                        <div class="skeleton" style="flex:1;height:12px;"></div>
+                    </div>
+                    <div style="display:flex;padding:8px 12px;border-bottom:1px solid #dee2e6;">
+                        <div class="skeleton" style="flex:1;height:12px;"></div>
+                        <div class="skeleton" style="flex:1;height:12px;"></div>
+                    </div>
+                    <div style="display:flex;padding:8px 12px;">
+                        <div class="skeleton" style="flex:1;height:12px;"></div>
+                        <div class="skeleton" style="flex:1;height:12px;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
     
     try {
         const filterData = await apiCall('/financials/filters/data');
@@ -5146,7 +5559,21 @@ async function renderSummaryContent() {
                     <button class="btn-add" id="downloadSummaryPDF" style="background: #e74c3c; padding:6px 14px; font-size:13px;">📄 PDF</button>
                 </div>
             </div>
-            <div id="summariesList" class="loading">Loading summaries...</div>
+            <div id="summariesList">
+                <div style="background:white; border:1px solid #ced4da; padding:16px 20px; margin-bottom:20px;">
+                    <div class="skeleton" style="width:200px;height:16px;margin-bottom:16px;"></div>
+                    <div style="border:1px solid #ced4da;margin-bottom:16px;">
+                        <div style="display:flex;padding:8px 12px;background:#e9ecef;">
+                            <div class="skeleton" style="flex:1;height:14px;"></div>
+                            <div class="skeleton" style="flex:1;height:14px;"></div>
+                        </div>
+                        <div style="display:flex;padding:8px 12px;border-bottom:1px solid #dee2e6;">
+                            <div class="skeleton" style="flex:1;height:12px;"></div>
+                            <div class="skeleton" style="flex:1;height:12px;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         `;
         
         document.getElementById('applyFilterSummary').onclick = () => loadSummaries();
