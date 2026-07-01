@@ -471,22 +471,67 @@
 
 <!-- Payment Modal -->
 <div class="modal-overlay" id="payModal">
-    <div class="modal-content">
-        <h3>Make Payment</h3>
-        <label>Select Payment Type</label>
-        <div class="radio-group" id="paymentTypeGroup">
-            <label><input type="radio" name="payType" value="rent" checked> Rent</label>
-            <label><input type="radio" name="payType" value="deposit"> Deposit</label>
-            <label><input type="radio" name="payType" value="penalty"> Penalty</label>
+    <div class="modal-content" style="max-width:450px;">
+        <!-- Step 1: Payment Details -->
+        <div id="paymentStep1">
+            <h3>Make Payment</h3>
+            <label>Select Payment Type</label>
+            <div class="radio-group" id="paymentTypeGroup">
+                <label><input type="radio" name="payType" value="rent" checked> Rent</label>
+                <label><input type="radio" name="payType" value="deposit"> Deposit</label>
+                <label><input type="radio" name="payType" value="penalty"> Penalty</label>
+            </div>
+            <label>Amount (KES)</label>
+            <input type="number" id="payAmount" placeholder="Enter amount" min="1">
+            <label>Phone Number (M-Pesa)</label>
+            <input type="tel" id="payPhone" placeholder="2547XXXXXXXX">
+            <div id="payMsg" style="color:#e74c3c; font-size:13px; margin-top:8px;"></div>
+            <div class="modal-buttons">
+                <button class="btn-cancel" onclick="closePayModal()">Cancel</button>
+                <button class="btn-pay" onclick="initiatePayment()">💰 Pay Now</button>
+            </div>
         </div>
-        <label>Amount (KES)</label>
-        <input type="number" id="payAmount" placeholder="Enter amount" min="1">
-        <label>Phone Number (M-Pesa)</label>
-        <input type="tel" id="payPhone" placeholder="2547XXXXXXXX">
-        <div id="payMsg" style="color:#e74c3c; font-size:13px; margin-top:8px;"></div>
-        <div class="modal-buttons">
-            <button class="btn-cancel" onclick="closePayModal()">Cancel</button>
-            <button class="btn-pay" onclick="initiatePayment()">💰 Pay Now</button>
+        
+        <!-- Step 2: Waiting for Payment -->
+        <div id="paymentStep2" style="display:none; text-align:center; padding:20px;">
+            <div style="font-size:60px; margin-bottom:20px;">⏳</div>
+            <h3>Processing Payment</h3>
+            <p style="color:#666; margin-bottom:20px;">
+                Please check your phone for the M-Pesa STK Push prompt.<br>
+                This will time out in <span id="timeoutCountdown">60</span> seconds.
+            </p>
+            <div style="margin-bottom:20px;">
+                <div style="font-weight:bold; color:#1e3a5f;" id="waitingPhone"></div>
+                <div style="font-size:24px; font-weight:bold; color:#27ae60;" id="waitingAmount"></div>
+            </div>
+            <button class="btn-cancel" onclick="cancelPayment()">Cancel</button>
+        </div>
+        
+        <!-- Step 3: Success -->
+        <div id="paymentStep3" style="display:none; text-align:center; padding:20px;">
+            <div style="font-size:60px; margin-bottom:20px;">✅</div>
+            <h3>Payment Successful!</h3>
+            <p style="color:#666; margin-bottom:20px;">
+                Thank you for your payment. Your transaction has been processed.
+            </p>
+            <div style="background:#f0f7f0; padding:15px; border-radius:8px; margin-bottom:20px;">
+                <div style="font-weight:bold;" id="successAmount"></div>
+                <div style="color:#666; font-size:12px;" id="successRef"></div>
+            </div>
+            <button class="btn-pay" onclick="closePayModal()">Done</button>
+        </div>
+        
+        <!-- Step 4: Failed -->
+        <div id="paymentStep4" style="display:none; text-align:center; padding:20px;">
+            <div style="font-size:60px; margin-bottom:20px;">❌</div>
+            <h3>Payment Failed</h3>
+            <p style="color:#666; margin-bottom:20px;" id="failMsg">
+                Your payment could not be processed. Please try again.
+            </p>
+            <div class="modal-buttons" style="justify-content:center;">
+                <button class="btn-cancel" onclick="closePayModal()">Close</button>
+                <button class="btn-pay" onclick="goToStep(1)">Try Again</button>
+            </div>
         </div>
     </div>
 </div>
@@ -520,9 +565,30 @@
     let tenantData = null;
     let tenantToken = localStorage.getItem('tenantToken');
 
-    // ========== CHECK LOGIN ==========
-    if (!tenantToken) {
-        window.location.href = 'tenant-login.html';
+    // ========== VALIDATE TOKEN & CHECK LOGIN ==========
+    async function validateTokenAndInit() {
+        if (!tenantToken) {
+            window.location.href = 'tenant-login.html';
+            return;
+        }
+
+        try {
+            const response = await fetch(`${API_URL}/me`, {
+                headers: { 'Authorization': `Bearer ${tenantToken}` }
+            });
+
+            if (!response.ok) {
+                logout();
+                return;
+            }
+
+            const result = await response.json();
+            tenantData = result.tenant;
+            localStorage.setItem('tenantData', JSON.stringify(tenantData));
+            loadDashboard();
+        } catch (error) {
+            logout();
+        }
     }
 
     // ========== LOAD DATA ==========
@@ -680,6 +746,11 @@
     });
 
     // ========== PAYMENT MODAL ==========
+    let currentPaymentReference = null;
+    let pollingInterval = null;
+    let timeoutInterval = null;
+    let timeoutSeconds = 60;
+
     function openPayModal() {
         document.getElementById('payModal').classList.add('active');
         document.getElementById('payMsg').textContent = '';
@@ -687,57 +758,137 @@
         document.getElementById('payPhone').value = '';
         // Default to rent
         document.querySelector('input[name="payType"][value="rent"]').checked = true;
+        goToStep(1);
     }
 
     function closePayModal() {
         document.getElementById('payModal').classList.remove('active');
+        stopPolling();
+        loadDashboard();
+    }
+
+    function goToStep(step) {
+        // Hide all steps
+        document.getElementById('paymentStep1').style.display = 'none';
+        document.getElementById('paymentStep2').style.display = 'none';
+        document.getElementById('paymentStep3').style.display = 'none';
+        document.getElementById('paymentStep4').style.display = 'none';
+        
+        // Show selected step
+        document.getElementById(`paymentStep${step}`).style.display = 'block';
     }
 
     async function initiatePayment() {
-    const type = document.querySelector('input[name="payType"]:checked').value;
-    const amount = parseFloat(document.getElementById('payAmount').value);
-    const phone = document.getElementById('payPhone').value.trim();
-    const msg = document.getElementById('payMsg');
-    
-    if (!amount || amount <= 0) {
-        msg.textContent = 'Please enter a valid amount';
-        return;
-    }
-    if (!phone) {
-        msg.textContent = 'Please enter phone number (e.g., 254712345678)';
-        return;
-    }
-    
-    msg.textContent = 'Initiating payment...';
-    
-    try {
-        const response = await fetch(`${API_URL}/pay`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${tenantToken}`
-            },
-            body: JSON.stringify({
-                tenant_id: tenantData.id,
-                amount: amount,
-                payment_type: type,
-                phone_number: phone
-            })
-        });
+        const type = document.querySelector('input[name="payType"]:checked').value;
+        const amount = parseFloat(document.getElementById('payAmount').value);
+        const phone = document.getElementById('payPhone').value.trim();
+        const msg = document.getElementById('payMsg');
         
-        const result = await response.json();
-        
-        if (response.ok && result.success) {
-            // Redirect to Paystack's payment page for STK Push
-            window.location.href = result.authorization_url;
-        } else {
-            msg.textContent = result.error || 'Payment failed';
+        if (!amount || amount <= 0) {
+            msg.textContent = 'Please enter a valid amount';
+            return;
         }
-    } catch (error) {
-        console.error('Payment error:', error);
-        msg.textContent = 'Connection error. Please try again.';
+        if (!phone) {
+            msg.textContent = 'Please enter phone number (e.g., 254712345678)';
+            return;
+        }
+        
+        msg.textContent = 'Initiating payment...';
+        
+        try {
+            const response = await fetch(`${API_URL}/pay`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${tenantToken}`
+                },
+                body: JSON.stringify({
+                    tenant_id: tenantData.id,
+                    amount: amount,
+                    payment_type: type,
+                    phone_number: phone
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (response.ok && result.success) {
+                currentPaymentReference = result.reference;
+                document.getElementById('waitingPhone').textContent = `Phone: ${phone}`;
+                document.getElementById('waitingAmount').textContent = `KES ${formatNumber(amount)}`;
+                startPolling(result.reference);
+                startTimeout();
+                goToStep(2);
+            } else {
+                document.getElementById('failMsg').textContent = result.error || 'Payment failed';
+                goToStep(4);
+            }
+        } catch (error) {
+            console.error('Payment error:', error);
+            document.getElementById('failMsg').textContent = 'Connection error. Please try again.';
+            goToStep(4);
+        }
     }
-}
+
+    function startPolling(reference) {
+        pollingInterval = setInterval(async () => {
+            try {
+                const response = await fetch(`${API_URL}/verify-payment/${reference}`, {
+                    headers: { 'Authorization': `Bearer ${tenantToken}` }
+                });
+                const result = await response.json();
+                
+                if (result.status === 'success') {
+                    stopPolling();
+                    stopTimeout();
+                    document.getElementById('successAmount').textContent = `KES ${formatNumber(result.amount)}`;
+                    document.getElementById('successRef').textContent = `Reference: ${reference}`;
+                    goToStep(3);
+                } else if (result.status === 'failed') {
+                    stopPolling();
+                    stopTimeout();
+                    document.getElementById('failMsg').textContent = result.message || 'Payment failed';
+                    goToStep(4);
+                }
+            } catch (error) {
+                console.error('Polling error:', error);
+            }
+        }, 3000); // Poll every 3 seconds
+    }
+
+    function stopPolling() {
+        if (pollingInterval) {
+            clearInterval(pollingInterval);
+            pollingInterval = null;
+        }
+    }
+
+    function startTimeout() {
+        timeoutSeconds = 60;
+        document.getElementById('timeoutCountdown').textContent = timeoutSeconds;
+        
+        timeoutInterval = setInterval(() => {
+            timeoutSeconds--;
+            document.getElementById('timeoutCountdown').textContent = timeoutSeconds;
+            
+            if (timeoutSeconds <= 0) {
+                cancelPayment();
+            }
+        }, 1000);
+    }
+
+    function stopTimeout() {
+        if (timeoutInterval) {
+            clearInterval(timeoutInterval);
+            timeoutInterval = null;
+        }
+    }
+
+    function cancelPayment() {
+        stopPolling();
+        stopTimeout();
+        goToStep(4);
+    }
 
     // ========== CHANGE PASSWORD ==========
     async function changePassword() {
@@ -1100,7 +1251,7 @@ function escapeHtml(str) {
     return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
     // ========== INIT ==========
-    loadDashboard();
+    validateTokenAndInit();
 </script>
 </body>
 </html>

@@ -156,6 +156,31 @@ router.post('/login', loginRateLimiter, validateTenantLogin, async (req, res) =>
     }
 });
 
+// ========== VALIDATE TOKEN ==========
+router.get('/me', tenantAuth, async (req, res) => {
+    try {
+        const tenant = await pool.query(`
+            SELECT t.*, p.name as property_name, r.house_no, r.rent
+            FROM tenants t
+            LEFT JOIN properties p ON t.property_id = p.id
+            LEFT JOIN rooms r ON t.room_id = r.id
+            WHERE t.id = $1 AND t.is_deleted = FALSE
+        `, [req.tenantId]);
+
+        if (tenant.rows.length === 0) {
+            return res.status(404).json({ error: 'Tenant not found' });
+        }
+
+        res.json({
+            tenant: tenant.rows[0],
+            valid: true
+        });
+    } catch (error) {
+        console.error('Token validation error:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 // ========== TENANT DASHBOARD ==========
 
 router.get('/dashboard/:tenantId', tenantAuth, async (req, res) => {
@@ -350,7 +375,7 @@ router.put('/update-phone/:tenantId', tenantAuth, async (req, res) => {
 });
 
 // ========== INITIATE PAYMENT (Paystack) ==========
-const { initializeTransaction } = require('../circuits/paystack-circuit');
+const { initializeTransaction, verifyTransaction } = require('../circuits/paystack-circuit');
 const crypto = require('crypto');
 
 router.post('/pay', tenantAuth, validatePayment, async (req, res) => {
@@ -360,8 +385,9 @@ router.post('/pay', tenantAuth, validatePayment, async (req, res) => {
     try {
         const tenantRes = await pool.query(
             `SELECT t.*, 
-                    a.payment_configured, a.paystack_subaccount_code, 
-                    a.currency, a.payment_type AS admin_payment_type 
+                    a.payment_configured,
+                    a.currency, a.payment_type AS admin_payment_type,
+                    a.provider_code, a.provider_name
              FROM tenants t 
              JOIN admin a ON t.owner_id = a.id 
              WHERE t.id = $1`,
@@ -395,12 +421,13 @@ router.post('/pay', tenantAuth, validatePayment, async (req, res) => {
             email: email || tenant.email || 'tenant@example.com',
             amount: amount,
             reference: reference,
-            subaccount_code: tenant.paystack_subaccount_code,
             metadata: {
                 tenant_id: tenantId,
                 owner_id: tenant.owner_id,
                 payment_type: payment_type,
-                phone_number: formattedPhone
+                phone_number: formattedPhone,
+                agency_provider_code: tenant.provider_code,
+                agency_provider_name: tenant.provider_name
             }
         });
         
@@ -415,6 +442,30 @@ router.post('/pay', tenantAuth, validatePayment, async (req, res) => {
         console.error('Payment initiation error:', error);
         res.status(500).json({ 
             error: error.response?.data?.message || 'Server error' 
+        });
+    }
+});
+
+// ========== VERIFY PAYMENT STATUS ==========
+router.get('/verify-payment/:reference', tenantAuth, async (req, res) => {
+    const { reference } = req.params;
+    
+    try {
+        const result = await verifyTransaction(reference);
+        
+        const status = result.data.status;
+        const amount = result.data.amount / 100; // Convert from kobo
+        
+        res.json({
+            status: status === 'success' ? 'success' : (status === 'failed' ? 'failed' : 'pending'),
+            amount: amount,
+            message: result.data.gateway_response || ''
+        });
+    } catch (error) {
+        console.error('Payment verification error:', error);
+        res.status(500).json({ 
+            status: 'error',
+            message: 'Failed to verify payment' 
         });
     }
 });

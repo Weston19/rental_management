@@ -250,6 +250,190 @@ const migrations = [
                 }
             }
         }
+    },
+    {
+        version: 8,
+        name: 'add_notification_preferences_and_admin_notifications',
+        up: async (client) => {
+            // Add notification preference columns to admin table
+            const columnsToAdd = [
+                { name: 'notify_on_payment', type: 'BOOLEAN DEFAULT TRUE' },
+                { name: 'notify_channel', type: 'VARCHAR(20) DEFAULT \'inapp\'' },
+                { name: 'notify_on_arrears', type: 'BOOLEAN DEFAULT TRUE' }
+            ];
+
+            for (const col of columnsToAdd) {
+                const exists = await client.query(`
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_schema = 'public'
+                      AND table_name = 'admin'
+                      AND column_name = $1
+                `, [col.name]);
+
+                if (exists.rows.length === 0) {
+                    await client.query(`
+                        ALTER TABLE admin ADD COLUMN ${col.name} ${col.type}
+                    `);
+                }
+            }
+
+            // Create admin notifications table
+            await client.query(`
+                CREATE TABLE IF NOT EXISTS admin_notifications (
+                    id SERIAL PRIMARY KEY,
+                    owner_id INTEGER REFERENCES admin(id) ON DELETE CASCADE NOT NULL,
+                    type VARCHAR(50) NOT NULL,
+                    title VARCHAR(255) NOT NULL,
+                    message TEXT NOT NULL,
+                    data JSONB,
+                    is_read BOOLEAN DEFAULT FALSE,
+                    created_at TIMESTAMP DEFAULT NOW()
+                )
+            `);
+
+            // Create indexes
+            await client.query(`
+                CREATE INDEX IF NOT EXISTS idx_admin_notifications_owner_id ON admin_notifications(owner_id)
+            `);
+            await client.query(`
+                CREATE INDEX IF NOT EXISTS idx_admin_notifications_is_read ON admin_notifications(is_read)
+            `);
+            await client.query(`
+                CREATE INDEX IF NOT EXISTS idx_admin_notifications_created_at ON admin_notifications(created_at)
+            `);
+        }
+    },
+    {
+        version: 9,
+        name: 'add_critical_performance_indexes',
+        up: async (client) => {
+            // Tenants Table Indexes
+            await client.query(`
+                CREATE INDEX IF NOT EXISTS idx_tenants_owner_isdeleted 
+                ON tenants (owner_id, is_deleted)
+            `);
+            await client.query(`
+                CREATE INDEX IF NOT EXISTS idx_tenants_phone_owner 
+                ON tenants (phone, owner_id)
+            `);
+            await client.query(`
+                CREATE INDEX IF NOT EXISTS idx_tenants_national_id_owner 
+                ON tenants (national_id, owner_id)
+            `);
+            await client.query(`
+                CREATE INDEX IF NOT EXISTS idx_tenants_account_owner 
+                ON tenants (account_number, owner_id)
+            `);
+            await client.query(`
+                CREATE INDEX IF NOT EXISTS idx_tenants_property 
+                ON tenants (property_id)
+            `);
+            await client.query(`
+                CREATE INDEX IF NOT EXISTS idx_tenants_room 
+                ON tenants (room_id)
+            `);
+
+            // Rooms Table Indexes
+            await client.query(`
+                CREATE INDEX IF NOT EXISTS idx_rooms_property 
+                ON rooms (property_id)
+            `);
+            await client.query(`
+                CREATE INDEX IF NOT EXISTS idx_rooms_status 
+                ON rooms (status)
+            `);
+            await client.query(`
+                CREATE INDEX IF NOT EXISTS idx_rooms_property_house 
+                ON rooms (property_id, house_no)
+            `);
+            await client.query(`
+                CREATE INDEX IF NOT EXISTS idx_rooms_property_status 
+                ON rooms (property_id, status)
+            `);
+
+            // Bills Table Indexes
+            await client.query(`
+                CREATE INDEX IF NOT EXISTS idx_bills_tenant 
+                ON bills (tenant_id)
+            `);
+            await client.query(`
+                CREATE INDEX IF NOT EXISTS idx_bills_property 
+                ON bills (property_id)
+            `);
+            await client.query(`
+                CREATE INDEX IF NOT EXISTS idx_bills_paid 
+                ON bills (paid)
+            `);
+            await client.query(`
+                CREATE INDEX IF NOT EXISTS idx_bills_due_date 
+                ON bills (due_date)
+            `);
+            await client.query(`
+                CREATE INDEX IF NOT EXISTS idx_bills_tenant_paid 
+                ON bills (tenant_id, paid)
+            `);
+
+            // Payments Table Indexes
+            await client.query(`
+                CREATE INDEX IF NOT EXISTS idx_payments_tenant 
+                ON payments (tenant_id)
+            `);
+            await client.query(`
+                CREATE INDEX IF NOT EXISTS idx_payments_property 
+                ON payments (property_id)
+            `);
+            await client.query(`
+                CREATE INDEX IF NOT EXISTS idx_payments_date 
+                ON payments (payment_date)
+            `);
+            await client.query(`
+                CREATE INDEX IF NOT EXISTS idx_payments_transaction_id 
+                ON payments (transaction_id)
+            `);
+            await client.query(`
+                CREATE INDEX IF NOT EXISTS idx_payments_owner 
+                ON payments (owner_id)
+            `);
+
+            // Messages Table Indexes
+            await client.query(`
+                CREATE INDEX IF NOT EXISTS idx_messages_owner 
+                ON messages (owner_id)
+            `);
+            await client.query(`
+                CREATE INDEX IF NOT EXISTS idx_messages_tenant 
+                ON messages (tenant_id)
+            `);
+            await client.query(`
+                CREATE INDEX IF NOT EXISTS idx_messages_sent 
+                ON messages (sent)
+            `);
+        }
+    },
+    {
+        version: 10,
+        name: 'add_covering_composite_indexes',
+        up: async (client) => {
+            // Covering indexes for most critical queries
+            await client.query(`
+                CREATE INDEX IF NOT EXISTS idx_bills_owner_status_date 
+                ON bills (owner_id, paid, due_date DESC)
+            `);
+            await client.query(`
+                CREATE INDEX IF NOT EXISTS idx_properties_owner_active 
+                ON properties (owner_id)
+                WHERE is_deleted = false
+            `);
+            await client.query(`
+                CREATE INDEX IF NOT EXISTS idx_tenants_owner_active 
+                ON tenants (owner_id)
+                WHERE is_deleted = false
+            `);
+            await client.query(`
+                CREATE INDEX IF NOT EXISTS idx_payments_owner_date 
+                ON payments (owner_id, payment_date DESC)
+            `);
+        }
     }
 ];
 

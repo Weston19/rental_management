@@ -4311,11 +4311,11 @@ async function downloadReceipt(paymentId) {
     const room = await apiCall(`/rooms/${tenant.room_id}`);
     const companyName = localStorage.getItem('companyName') || 'Rental Management System';
     
-    let accountNumber = room?.house_no || tenant.account_number;
+    let accountNumber = tenant.account_number || room?.house_no;
     if (payment.payment_type === 'deposit') {
-        accountNumber = `D${room?.house_no}`;
+        accountNumber = `D${tenant.account_number || room?.house_no}`;
     } else if (payment.payment_type === 'penalty') {
-        accountNumber = `P${room?.house_no}`;
+        accountNumber = `P${tenant.account_number || room?.house_no}`;
     }
     
     const currentBalance = tenant.balance || 0;

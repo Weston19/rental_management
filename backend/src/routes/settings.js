@@ -318,4 +318,48 @@ router.get('/sms-balance', async (req, res) => {
     res.json({ balance: '1500.50' });
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// NOTIFICATION PREFERENCES
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Get notification preferences
+router.get('/notification-preferences', async (req, res) => {
+    try {
+        const result = await pool.query(
+            'SELECT notify_on_payment, notify_channel, notify_on_arrears FROM admin WHERE id = $1',
+            [req.ownerId]
+        );
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Admin not found' });
+        }
+        res.json(result.rows[0]);
+    } catch (error) {
+        console.error('Get notification preferences error:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Update notification preferences
+router.put('/notification-preferences', requireOwner, async (req, res) => {
+    const { notify_on_payment, notify_channel, notify_on_arrears } = req.body;
+    try {
+        const result = await pool.query(
+            `UPDATE admin 
+             SET notify_on_payment = $1, 
+                 notify_channel = $2, 
+                 notify_on_arrears = $3 
+             WHERE id = $4 
+             RETURNING notify_on_payment, notify_channel, notify_on_arrears`,
+            [notify_on_payment, notify_channel, notify_on_arrears, req.ownerId]
+        );
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Admin not found' });
+        }
+        res.json(result.rows[0]);
+    } catch (error) {
+        console.error('Update notification preferences error:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 module.exports = router;

@@ -45,6 +45,21 @@ module.exports = async (req, res, next) => {
         let ownerId = decoded.ownerId || adminId;
         let role    = 'owner';
 
+        // Try to get cached role/ownerId first
+        const cacheKey = `auth:${adminId}:${ownerId}`;
+        try {
+            const cached = await redis.get(cacheKey);
+            if (cached) {
+                const { cachedOwnerId, cachedRole } = JSON.parse(cached);
+                req.adminId = adminId;
+                req.ownerId = cachedOwnerId;
+                req.role = cachedRole;
+                return next();
+            }
+        } catch (_) {
+            // Redis unavailable — proceed with DB lookup
+        }
+
         // 3. Look up live role from DB (gives us correct ownerId + role)
         try {
             const roleResult = await pool.query(
@@ -85,6 +100,13 @@ module.exports = async (req, res, next) => {
             } else {
                 throw dbErr; // real DB error — let it surface
             }
+        }
+
+        // Cache the role/ownerId for 10 minutes (600 seconds)
+        try {
+            await redis.set(cacheKey, JSON.stringify({ cachedOwnerId: ownerId, cachedRole: role }), { ex: 600 });
+        } catch (_) {
+            // Redis unavailable — ignore cache set
         }
 
         req.adminId = adminId;

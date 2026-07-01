@@ -96,13 +96,11 @@ async function createSubaccount(businessName, settlementBank, accountNumber, per
 }
 
 // ========== INITIALIZE TRANSACTION ==========
-async function initializeTransaction(email, amount, reference, subaccountCode, bearer = 'subaccount', metadata = {}) {
+async function initializeTransaction(email, amount, reference, metadata = {}) {
     return await makePaystackRequest('POST', '/transaction/initialize', {
         email: email,
         amount: Math.round(amount * 100), // Convert to kobo
         reference: reference,
-        subaccount: subaccountCode,
-        bearer: bearer,
         metadata: metadata,
         channels: ['mobile_money', 'card', 'bank']
     });
@@ -185,8 +183,8 @@ module.exports = {
     updateSubaccount: async ({ subaccount_code, business_name, settlement_bank, account_number, percentage_charge = 0 }) => {
         return await updateSubaccountCircuit.fire(subaccount_code, business_name, settlement_bank, account_number, percentage_charge);
     },
-    initializeTransaction: async ({ email, amount, reference, subaccount_code, bearer = 'subaccount', metadata = {} }) => {
-        return await initializeTransactionCircuit.fire(email, amount, reference, subaccount_code, bearer, metadata);
+    initializeTransaction: async ({ email, amount, reference, metadata = {} }) => {
+        return await initializeTransactionCircuit.fire(email, amount, reference, metadata);
     },
     verifyTransaction: async (reference) => {
         return await verifyTransactionCircuit.fire(reference);

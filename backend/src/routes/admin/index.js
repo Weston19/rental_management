@@ -9,6 +9,7 @@ const settingsRoutes = require('../settings');
 const paymentsRoutes = require('../payments');
 const paystackRoutes = require('../paystack');
 const qstashRoutes = require('../qstash-jobs');
+const notificationsRoutes = require('../notifications');
 
 const router = express.Router();
 
@@ -25,5 +26,6 @@ router.use('/bills', billRoutes);
 router.use('/financials', financialRoutes);
 router.use('/settings', settingsRoutes);
 router.use('/payments', paymentsRoutes);
+router.use('/notifications', notificationsRoutes);
 
 module.exports = router;

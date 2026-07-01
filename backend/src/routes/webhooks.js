@@ -2,6 +2,8 @@ const express = require('express');
 const pool = require('../utils/db');
 const auth = require('../middleware/auth');
 const { blockViewerWrites } = require('../middleware/requireRole');
+const crypto = require('crypto');
+const { sendNotification } = require('../utils/notifications');
 
 const router = express.Router();
 
@@ -190,6 +192,96 @@ router.post('/unassigned/assign/:id', auth, blockViewerWrites, async (req, res) 
         res.json({ message: 'Payment assigned successfully' });
     } catch (error) {
         console.error(error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PAYSTACK WEBHOOK (no auth — called by Paystack servers)
+// ─────────────────────────────────────────────────────────────────────────────
+router.post('/paystack', async (req, res) => {
+    try {
+        // Verify Paystack signature
+        const paystackSecret = process.env.PAYSTACK_SECRET_KEY;
+        const hash = crypto
+            .createHmac('sha512', paystackSecret)
+            .update(JSON.stringify(req.body))
+            .digest('hex');
+        
+        if (hash !== req.headers['x-paystack-signature']) {
+            return res.status(401).send('Invalid signature');
+        }
+
+        const event = req.body;
+        const eventType = event.event;
+        
+        // Handle successful payment
+        if (eventType === 'charge.success') {
+            const data = event.data;
+            const reference = data.reference;
+            const amount = data.amount / 100;
+            const metadata = data.metadata || {};
+            
+            // Check if we already processed this payment
+            const existing = await pool.query(
+                'SELECT id FROM payments WHERE transaction_id = $1',
+                [reference]
+            );
+            
+            if (existing.rows.length > 0) {
+                return res.status(200).json({ success: true });
+            }
+            
+            const tenantId = metadata.tenant_id;
+            const ownerId = metadata.owner_id;
+            const paymentType = metadata.payment_type || 'rent';
+            
+            if (tenantId && ownerId) {
+                // Get tenant details for notification
+                const tenantRes = await pool.query(
+                    `SELECT t.first_name, t.last_name, p.name as property_name, r.house_no
+                     FROM tenants t
+                     LEFT JOIN properties p ON t.property_id = p.id
+                     LEFT JOIN rooms r ON t.room_id = r.id
+                     WHERE t.id = $1`,
+                    [tenantId]
+                );
+                const tenant = tenantRes.rows[0];
+
+                // Insert payment
+                const paymentRes = await pool.query(
+                    `INSERT INTO payments (tenant_id, amount, payment_date, payment_type, transaction_id, source, owner_id)
+                     VALUES ($1,$2,NOW(),$3,$4,'paystack',$5)
+                     RETURNING *`,
+                    [tenantId, amount, paymentType, reference, ownerId]
+                );
+                const payment = paymentRes.rows[0];
+                
+                // Apply to bills
+                await applyPaymentToBills(tenantId, amount);
+
+                // Send notification to admin
+                await sendNotification({
+                    ownerId: ownerId,
+                    type: 'payment_received',
+                    title: 'New Payment Received!',
+                    message: `Payment of KES ${amount} received from ${tenant?.first_name || 'Tenant'} ${tenant?.last_name || ''} for ${paymentType} at ${tenant?.property_name || 'your property'}, unit ${tenant?.house_no || '-'}`,
+                    data: {
+                        paymentId: payment.id,
+                        tenantId,
+                        amount,
+                        paymentType,
+                        propertyName: tenant?.property_name,
+                        houseNo: tenant?.house_no,
+                        tenantName: `${tenant?.first_name || ''} ${tenant?.last_name || ''}`
+                    }
+                });
+            }
+        }
+        
+        res.status(200).json({ success: true });
+    } catch (error) {
+        console.error('Paystack webhook error:', error);
         res.status(500).json({ error: 'Server error' });
     }
 });
