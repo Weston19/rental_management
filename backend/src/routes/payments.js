@@ -324,6 +324,29 @@ router.delete('/:id', requireOwner, async (req, res) => {
     }
 });
 
+// PUT mark receipt as sent — manager+
+router.put('/:id/receipt-sent', async (req, res) => {
+    try {
+        const payment = await assertPaymentOwnership(req.params.id, req.ownerId);
+        if (!payment) return res.status(404).json({ error: 'Payment not found' });
+
+        await pool.query(
+            'UPDATE payments SET receipt_sent = true, receipt_sent_at = NOW() WHERE id = $1',
+            [req.params.id]
+        );
+
+        // Clear caches
+        await redis.del(`all_payments:${req.ownerId}`);
+        await redis.del(`payment:${req.ownerId}:${req.params.id}`);
+        await redis.del(`tenant_payments:${req.ownerId}:${payment.tenant_id}`);
+
+        res.json({ message: 'Receipt marked as sent' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // GET summary stats — scoped to owner
 router.get('/summary/stats', async (req, res) => {
     try {
