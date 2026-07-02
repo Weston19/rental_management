@@ -227,10 +227,14 @@ router.post('/', async (req, res) => {
              payment_type || 'rent', transaction_id, notes, req.ownerId]
         );
 
-        await applyPaymentToBills(tenant_id, numericAmount, req.ownerId);
+        await applyPaymentToBills(tenantId, numericAmount, req.ownerId);
         await redis.del(`all_payments:${req.ownerId}`);
-        await redis.del(`tenant_payments:${req.ownerId}:${tenant_id}`);
+        await redis.del(`tenant_payments:${req.ownerId}:${tenantId}`);
         await redis.del(`all_bills:${req.ownerId}`);
+        // Invalidate all financial caches
+        await deleteKeysByPattern(`financial_summaries:${req.ownerId}:*`);
+        await deleteKeysByPattern(`financial_tenant_list:${req.ownerId}:*`);
+        await deleteKeysByPattern(`financial_expenses:${req.ownerId}:*`);
         res.json(result.rows[0]);
     } catch (error) {
         console.error(error);

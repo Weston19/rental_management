@@ -57,7 +57,8 @@ router.get('/', async (req, res) => {
     try {
         const cached = await redis.get(cacheKey);
         if (cached) {
-            return res.json(typeof cached === 'string' ? JSON.parse(cached) : cached);
+            const parsedCache = typeof cached === 'string' ? JSON.parse(cached) : cached;
+            return res.json(parsedCache);
         }
 
         const result = await pool.query(`

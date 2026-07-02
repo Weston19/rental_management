@@ -16,15 +16,6 @@ const CACHE_TTL = 60 * 1000; // 1 minute TTL for frontend cache
 
 async function apiCall(endpoint, options = {}) {
     console.log('[apiCall] Calling endpoint:', endpoint);
-    // For GET requests, check frontend cache first
-    if (!options.method || options.method === 'GET') {
-        const cacheKey = endpoint;
-        const cachedEntry = frontendCache.get(cacheKey);
-        if (cachedEntry && Date.now() - cachedEntry.timestamp < CACHE_TTL) {
-            console.log('[apiCall] Using cached data for endpoint:', endpoint);
-            return cachedEntry.data;
-        }
-    }
     
     const defaultOptions = {
         headers: {
@@ -47,52 +38,11 @@ async function apiCall(endpoint, options = {}) {
         const data = await response.json();
         console.log('[apiCall] Response data for', endpoint, ':', data);
         
-        // Cache successful GET responses
-        if ((!options.method || options.method === 'GET') && response.ok) {
-            frontendCache.set(endpoint, { data, timestamp: Date.now() });
-        }
-        // Invalidate cache on mutations (POST, PUT, DELETE)
-        else if (['POST', 'PUT', 'DELETE'].includes(options.method) && response.ok) {
-            // Determine which cache keys to invalidate based on endpoint
-            const invalidatePatterns = [];
-            
-            if (endpoint.includes('/properties')) {
-                invalidatePatterns.push('/properties', '/rooms', '/tenants', '/bills', '/payments', '/financials', '/dashboard');
-            } else if (endpoint.includes('/rooms')) {
-                invalidatePatterns.push('/properties', '/rooms', '/tenants');
-            } else if (endpoint.includes('/tenants')) {
-                invalidatePatterns.push('/tenants', '/bills', '/payments', '/financials', '/properties');
-            } else if (endpoint.includes('/bills')) {
-                invalidatePatterns.push('/bills', '/payments', '/financials', '/tenants', '/dashboard');
-            } else if (endpoint.includes('/payments')) {
-                invalidatePatterns.push('/payments', '/bills', '/financials', '/tenants', '/dashboard');
-            } else if (endpoint.includes('/financials')) {
-                invalidatePatterns.push('/financials', '/payments', '/tenants', '/dashboard');
-            } else if (endpoint.includes('/settings')) {
-                invalidatePatterns.push('/settings');
-            } else if (endpoint.includes('/notifications')) {
-                invalidatePatterns.push('/notifications');
-            }
-            
-            invalidateCache(invalidatePatterns);
-        }
-        
         return data;
     } catch (error) {
         console.error('[apiCall] Error for', endpoint, ':', error);
         return null;
     }
-}
-
-// Helper to invalidate frontend cache for matching patterns
-function invalidateCache(patterns) {
-    const keysToDelete = [];
-    frontendCache.forEach((_, key) => {
-        if (patterns.some(p => key.includes(p))) {
-            keysToDelete.push(key);
-        }
-    });
-    keysToDelete.forEach(key => frontendCache.delete(key));
 }
 
 // Toast notification function to replace alerts
@@ -497,17 +447,25 @@ async function renderDashboard() {
         apiCall('/financials/expenses')
     ]);
     
+    // Ensure all data is array
+    const safeProperties = properties || [];
+    const safeAllRooms = allRooms || [];
+    const safeAllTenants = allTenants || [];
+    const safeAllBills = allBills || [];
+    const safeAllPayments = allPayments || [];
+    const safeAllExpenses = allExpenses || [];
+    
     // Calculate arrears
     let arrearsTotal = 0;
     let tenantsWithArrears = 0;
     let arrearsList = [];
     
-    if (allTenants) {
-        // Create a map of tenant balances from allBills for faster lookup
+    if (safeAllTenants) {
+        // Create a map of tenant balances from safeAllBills for faster lookup
         const tenantBalanceMap = new Map();
         
-        if (allBills) {
-            for (const bill of allBills) {
+        if (safeAllBills) {
+            for (const bill of safeAllBills) {
                 const tenantId = bill.tenant_id;
                 const billBalance = (parseFloat(bill.total_bill) || 0) - (parseFloat(bill.total_paid) || 0);
                 
@@ -518,7 +476,7 @@ async function renderDashboard() {
             }
         }
         
-        for (const tenant of allTenants) {
+        for (const tenant of safeAllTenants) {
             const balance = tenantBalanceMap.get(tenant.id) || 0;
             tenant.balance = balance;
             if (balance > 0) {
@@ -534,8 +492,8 @@ async function renderDashboard() {
     let tenantsWithAdvance = 0;
     let advanceList = [];
     
-    if (allTenants) {
-        for (const tenant of allTenants) {
+    if (safeAllTenants) {
+        for (const tenant of safeAllTenants) {
             const balance = tenant.balance || 0;
             if (balance < 0) {
                 advanceTotal += Math.abs(balance);
@@ -548,16 +506,16 @@ async function renderDashboard() {
     // Calculate payments & invoices totals
     let totalBilled = 0;
     let totalPaid = 0;
-    if (allBills) {
-        totalBilled = allBills.reduce((sum, b) => sum + parseFloat(b.total_bill || 0), 0);
-        totalPaid = allBills.reduce((sum, b) => sum + parseFloat(b.total_paid || 0), 0);
+    if (safeAllBills) {
+        totalBilled = safeAllBills.reduce((sum, b) => sum + parseFloat(b.total_bill || 0), 0);
+        totalPaid = safeAllBills.reduce((sum, b) => sum + parseFloat(b.total_paid || 0), 0);
     }
     const paidPercentage = totalBilled > 0 ? Math.round((totalPaid / totalBilled) * 100) : 0;
     const unpaidPercentage = 100 - paidPercentage;
     
     // Calculate occupancy
-    const totalRooms = allRooms ? allRooms.length : 0;
-    const vacantRooms = allRooms ? allRooms.filter(r => r.status === 'vacant').length : 0;
+    const totalRooms = safeAllRooms ? safeAllRooms.length : 0;
+    const vacantRooms = safeAllRooms ? safeAllRooms.filter(r => r.status === 'vacant').length : 0;
     const occupiedRooms = totalRooms - vacantRooms;
     const occupancyRate = totalRooms > 0 ? Math.round((occupiedRooms / totalRooms) * 100) : 0;
     
@@ -565,15 +523,15 @@ async function renderDashboard() {
     let propertyInvoiceData = [];
     let propertyOccupancyData = [];
     
-    if (properties) {
-        for (const property of properties) {
-            const propertyRooms = allRooms ? allRooms.filter(r => r.property_id === property.id) : [];
-            const propertyTenants = allTenants ? allTenants.filter(t => t.property_id === property.id && !t.is_deleted) : [];
+    if (safeProperties) {
+        for (const property of safeProperties) {
+            const propertyRooms = safeAllRooms ? safeAllRooms.filter(r => r.property_id === property.id) : [];
+            const propertyTenants = safeAllTenants ? safeAllTenants.filter(t => t.property_id === property.id && !t.is_deleted) : [];
             
             let pBilled = 0;
             let pPaid = 0;
             for (const tenant of propertyTenants) {
-                const tenantBills = allBills ? allBills.filter(b => b.tenant_id === tenant.id) : [];
+                const tenantBills = safeAllBills ? safeAllBills.filter(b => b.tenant_id === tenant.id) : [];
                 for (const bill of tenantBills) {
                     pBilled += parseFloat(bill.total_bill || 0);
                     pPaid += parseFloat(bill.total_paid || 0);
@@ -611,18 +569,18 @@ async function renderDashboard() {
         let invoices = 0;
         let expenses = 0;
         
-        if (allPayments) {
-            payments = allPayments
+        if (safeAllPayments) {
+            payments = safeAllPayments
                 .filter(p => p.payment_date && p.payment_date.startsWith(monthYear))
                 .reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
         }
-        if (allBills) {
-            invoices = allBills
+        if (safeAllBills) {
+            invoices = safeAllBills
                 .filter(b => b.bill_month && b.bill_month.startsWith(monthYear))
                 .reduce((sum, b) => sum + parseFloat(b.total_bill || 0), 0);
         }
-        if (allExpenses) {
-            expenses = allExpenses
+        if (safeAllExpenses) {
+            expenses = safeAllExpenses
                 .filter(e => e.expense_date && e.expense_date.startsWith(monthYear))
                 .reduce((sum, e) => sum + parseFloat(e.amount || 0), 0);
         }
@@ -2984,12 +2942,17 @@ async function renderTenants() {
         apiCall('/bills')
     ]);
     
-    if(!allTenants) {
+    // Ensure all data is array
+    const safeProperties = properties || [];
+    const safeAllTenants = allTenants || [];
+    const safeAllBills = allBills || [];
+    
+    if(!safeAllTenants) {
         document.getElementById('tenantsList').innerHTML = '<div class="empty-state">Failed to load tenants.</div>';
         return;
     }
     
-    const activeTenants = allTenants.filter(t => !t.is_deleted);
+    const activeTenants = safeAllTenants.filter(t => !t.is_deleted);
     content.innerHTML = `
         <div style="display:flex; justify-content:flex-end; margin-bottom:15px;">
             <button class="btn-add" id="addTenantBtn">+ Add Tenant</button>
@@ -3025,15 +2988,15 @@ async function renderTenants() {
         <div id="pagination-container"></div>
     `;
     
-    if(properties){
+    if(safeProperties){
         const filterSelect = document.getElementById('propertyFilterTenant');
-        properties.forEach(p => { filterSelect.innerHTML += `<option value="${p.id}">${escapeHtml(p.name)}</option>`; });
+        safeProperties.forEach(p => { filterSelect.innerHTML += `<option value="${p.id}">${escapeHtml(p.name)}</option>`; });
     }
     
-    // Calculate balances using allBills (no N+1!)
-    for (const tenant of allTenants) {
+    // Calculate balances using safeAllBills (no N+1!)
+    for (const tenant of safeAllTenants) {
         let balance = 0;
-        const tenantBills = allBills ? allBills.filter(b => b.tenant_id === tenant.id) : [];
+        const tenantBills = safeAllBills ? safeAllBills.filter(b => b.tenant_id === tenant.id) : [];
         
         for (const bill of tenantBills) {
             const totalBill = bill.total_bill || 0;
@@ -3043,16 +3006,16 @@ async function renderTenants() {
         tenant.balance = balance;
     }
     
-    let filteredTenants = allTenants.filter(t => !t.is_deleted);
+    let filteredTenants = safeAllTenants.filter(t => !t.is_deleted);
     
-    document.getElementById('addTenantBtn').onclick = () => showAddTenantModal(properties);
+    document.getElementById('addTenantBtn').onclick = () => showAddTenantModal(safeProperties);
     
     const filterTenants = () => {
         const search = document.getElementById('searchTenant')?.value.toLowerCase() || '';
         const statusFilter = document.getElementById('statusFilterTenant')?.value || 'active';
         const propertyFilter = document.getElementById('propertyFilterTenant')?.value || '';
         
-        filteredTenants = allTenants.filter(t => {
+        filteredTenants = safeAllTenants.filter(t => {
             let match = true;
             if (statusFilter === 'active') {
                 match = match && !t.is_deleted;
@@ -3784,8 +3747,8 @@ async function renderBilling() {
     let allBills = [];
     
     async function loadBills() {
-        allBills = await apiCall('/bills');
-        if (!allBills) return;
+        const billsFromApi = await apiCall('/bills');
+        allBills = billsFromApi || [];
         filterBills();
     }
     
