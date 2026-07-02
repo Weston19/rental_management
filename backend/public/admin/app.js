@@ -2967,7 +2967,7 @@ async function renderTenants() {
     const [properties, allTenants, allBills] = await Promise.all([
         apiCall('/properties'),
         apiCall('/tenants/all'),
-        apiCall('/bills/all')
+        apiCall('/bills')
     ]);
     
     if(!allTenants) {
