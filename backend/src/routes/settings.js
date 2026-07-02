@@ -196,6 +196,15 @@ router.post('/templates/reset', requireOwner, async (req, res) => {
 // GET list of Kenyan banks and mobile money providers
 router.get('/payment-providers', async (req, res) => {
     try {
+        // Check Redis cache first
+        const cacheKey = 'payment_providers:ke';
+        const cachedProviders = await redis.get(cacheKey);
+        
+        if (cachedProviders) {
+            console.log('Using cached payment providers');
+            return res.json(JSON.parse(cachedProviders));
+        }
+        
         const paystackCircuit = require('../circuits/paystack-circuit');
         let banksResult;
         let kenyanBanks = [];
@@ -257,10 +266,15 @@ router.get('/payment-providers', async (req, res) => {
             { code: 'TELKOM', name: 'Telkom Kenya' }
         ];
         
-        res.json({
+        const providers = {
             banks: kenyanBanks,
             mobileMoney: mobileMoneyProviders
-        });
+        };
+        
+        // Cache the result for 24 hours (86400 seconds)
+        await redis.setex(cacheKey, 86400, JSON.stringify(providers));
+        
+        res.json(providers);
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Server error' });

@@ -15,11 +15,13 @@ const frontendCache = new Map();
 const CACHE_TTL = 60 * 1000; // 1 minute TTL for frontend cache
 
 async function apiCall(endpoint, options = {}) {
+    console.log('[apiCall] Calling endpoint:', endpoint);
     // For GET requests, check frontend cache first
     if (!options.method || options.method === 'GET') {
         const cacheKey = endpoint;
         const cachedEntry = frontendCache.get(cacheKey);
         if (cachedEntry && Date.now() - cachedEntry.timestamp < CACHE_TTL) {
+            console.log('[apiCall] Using cached data for endpoint:', endpoint);
             return cachedEntry.data;
         }
     }
@@ -33,6 +35,7 @@ async function apiCall(endpoint, options = {}) {
     
     try {
         const response = await fetch(`${API_URL}${endpoint}`, { ...defaultOptions, ...options });
+        console.log('[apiCall] Response status for', endpoint, ':', response.status);
         
         if (response.status === 401) {
             localStorage.removeItem('token');
@@ -42,6 +45,7 @@ async function apiCall(endpoint, options = {}) {
         }
         
         const data = await response.json();
+        console.log('[apiCall] Response data for', endpoint, ':', data);
         
         // Cache successful GET responses
         if ((!options.method || options.method === 'GET') && response.ok) {
@@ -75,6 +79,7 @@ async function apiCall(endpoint, options = {}) {
         
         return data;
     } catch (error) {
+        console.error('[apiCall] Error for', endpoint, ':', error);
         return null;
     }
 }
@@ -1676,6 +1681,15 @@ function showChangeCompanyModal() {
 // ========== PAYMENT SETUP ==========
 async function renderPaymentSetup() {
     const container = document.getElementById('settingsContent');
+    
+    // Show skeleton while loading
+    container.innerHTML = `
+        <div style="max-width: 600px;">
+            <div class="skeleton" style="width: 150px; height: 30px; margin-bottom: 20px;"></div>
+            <div class="skeleton" style="height: 200px; margin-bottom: 20px;"></div>
+            <div class="skeleton" style="height: 300px;"></div>
+        </div>
+    `;
     
     try {
         const [paymentSetup, providers] = await Promise.all([
