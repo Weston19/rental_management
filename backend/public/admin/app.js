@@ -4407,9 +4407,9 @@ async function renderPayments() {
             <button class="btn-add" id="unassignedBtn" style="background:#f39c12; margin-left:10px;">⚠ Unassigned Payments</button>
         </div>
         <div class="cards" id="summaryCards" style="margin-bottom:20px;">
-            <div class="card"><h4>Total Payments</h4><div class="skeleton" style="width:100px; height:30px; margin:0 auto;"></div></div>
-            <div class="card"><h4>Manual</h4><div class="skeleton" style="width:100px; height:30px; margin:0 auto;"></div></div>
-            <div class="card"><h4>Auto (M-Pesa)</h4><div class="skeleton" style="width:100px; height:30px; margin:0 auto;"></div></div>
+            <div class="card"><h4>Total Payments</h4><div class="value" id="totalPayments">KES 0</div></div>
+            <div class="card"><h4>Manual</h4><div class="value" id="manualTotal">KES 0</div></div>
+            <div class="card"><h4>Auto (M-Pesa)</h4><div class="value" id="autoTotal">KES 0</div></div>
         </div>
         <div class="filters">
             <input type="text" id="searchPayment" class="filter-input" placeholder="Search tenant name/room" style="width:200px;">
