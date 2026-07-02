@@ -193,13 +193,17 @@ router.put('/:id', async (req, res) => {
         );
         await pool.query('DELETE FROM bill_items WHERE bill_id = $1', [req.params.id]);
         for (const item of items) {
-            if (item.item_name && item.amount > 0) {
+            if (item.item_name) {
                 await pool.query(
                     'INSERT INTO bill_items (bill_id, item_name, amount) VALUES ($1,$2,$3)',
                     [req.params.id, item.item_name, item.amount]
                 );
             }
         }
+        
+        // Update bill status
+        await updateBillStatus(req.params.id);
+        
         await redis.del(`all_bills:${req.ownerId}`);
         await redis.del(`bill:${req.ownerId}:${req.params.id}`);
         res.json({ message: 'Bill updated successfully' });

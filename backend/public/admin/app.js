@@ -3918,15 +3918,15 @@ window.editBill = async (id) => {
     
     let itemsHtml = '';
     if (bill.items && bill.items.length > 0) {
-        bill.items.forEach((item) => {
-            itemsHtml += `<div class="bill-item-row" style="display:flex; gap:10px; margin-top:5px;">
+        bill.items.forEach((item, index) => {
+            itemsHtml += `<div class="bill-item-row" data-index="${index}" style="display:flex; gap:10px; margin-top:5px;">
                 <input type="text" class="item-name" value="${escapeHtml(item.item_name)}" placeholder="Item name" style="flex:2;">
                 <input type="number" class="item-amount" value="${item.amount}" step="0.01" placeholder="Amount" style="flex:1;">
                 <button type="button" class="btn-danger remove-item-btn" style="padding:5px 10px;">✖</button>
             </div>`;
         });
     } else {
-        itemsHtml = `<div class="bill-item-row" style="display:flex; gap:10px; margin-top:5px;">
+        itemsHtml = `<div class="bill-item-row" data-index="0" style="display:flex; gap:10px; margin-top:5px;">
             <input type="text" class="item-name" placeholder="Item name" style="flex:2;">
             <input type="number" class="item-amount" placeholder="Amount" step="0.01" style="flex:1;">
             <button type="button" class="btn-danger remove-item-btn" style="padding:5px 10px;">✖</button>
@@ -3939,32 +3939,23 @@ window.editBill = async (id) => {
         <label>Bill Items</label>
         <div id="billItemsContainer">${itemsHtml}</div>
         <button type="button" class="btn-add" id="addBillItemBtn" style="margin-top:10px;">+ Add Item</button>
+        <div id="editBillMsg" style="color:#e74c3c; font-size:13px; margin-top:10px;"></div>
         <div class="modal-buttons">
             <button class="btn-cancel" id="closeModalBtn">Cancel</button>
             <button class="btn-save" id="saveBillBtn">Save Changes</button>
         </div>
     </div>`;
     
-    showModal(modalHtml, async () => {
-        const items = [];
-        document.querySelectorAll('.bill-item-row').forEach(row => {
-            const itemName = row.querySelector('.item-name')?.value;
-            const amount = parseFloat(row.querySelector('.item-amount')?.value) || 0;
-            if (itemName && itemName.trim()) {
-                items.push({ item_name: itemName.trim(), amount });
-            }
-        });
-        
-        await apiCall(`/bills/${id}`, {
-            method: 'PUT',
-            body: JSON.stringify({
-                previous_balance: parseFloat(document.getElementById('editPrevBalance').value) || 0,
-                items: items
-            })
-        });
-        renderBilling();
-    });
+    showModal(modalHtml, null);
     
+    // Function to attach remove handlers
+    const attachRemoveHandlers = () => {
+        document.querySelectorAll('.bill-item-row .remove-item-btn').forEach(btn => {
+            btn.onclick = (e) => e.target.closest('.bill-item-row').remove();
+        });
+    };
+    
+    // Add item
     document.getElementById('addBillItemBtn').onclick = () => {
         const container = document.getElementById('billItemsContainer');
         const newRow = document.createElement('div');
@@ -3976,7 +3967,48 @@ window.editBill = async (id) => {
             <button type="button" class="btn-danger remove-item-btn" style="padding:5px 10px;">✖</button>
         `;
         container.appendChild(newRow);
-        newRow.querySelector('.remove-item-btn').onclick = () => newRow.remove();
+        attachRemoveHandlers();
+    };
+    
+    // Attach initial remove handlers
+    attachRemoveHandlers();
+    
+    // Save changes using correct button id
+    document.getElementById('saveBillBtn').onclick = async () => {
+        const items = [];
+        document.querySelectorAll('.bill-item-row').forEach(row => {
+            const itemName = row.querySelector('.item-name')?.value;
+            const amount = parseFloat(row.querySelector('.item-amount')?.value) || 0;
+            if (itemName && itemName.trim()) {
+                items.push({ item_name: itemName.trim(), amount });
+            }
+        });
+        
+        const msgDiv = document.getElementById('editBillMsg');
+        
+        if (items.length === 0) {
+            msgDiv.textContent = 'Please add at least one bill item';
+            return;
+        }
+        
+        const result = await apiCall(`/bills/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify({
+                previous_balance: parseFloat(document.getElementById('editPrevBalance').value) || 0,
+                items: items
+            })
+        });
+        
+        if (result?.error) {
+            msgDiv.textContent = result.error;
+        } else {
+            msgDiv.style.color = '#27ae60';
+            msgDiv.textContent = 'Bill saved successfully!';
+            setTimeout(() => {
+                document.querySelector('.modal')?.remove();
+                renderBilling();
+            }, 1000);
+        }
     };
 };
 
