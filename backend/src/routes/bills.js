@@ -121,7 +121,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // POST create bill
-router.post('/', async (req, res) => {
+router.post('/', auth, async (req, res) => {
     const { tenant_id, property_id, room_id, bill_month, items, previous_balance } = req.body;
 
     try {
