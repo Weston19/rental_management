@@ -24,18 +24,27 @@ router.use(auth, blockViewerWrites);
 
 // ─── Helper: clean and parse amount string ────────────────────────────────────
 function parseAmount(raw) {
-    if (!raw || raw.trim() === '') {
+    //handle null/undifined/empty
+    if (raw ===null || raw ==== undefined) {
         return 0;
     }
     if (typeof raw === 'string') {
-        raw = raw.replace(/,/g, '').replace(/[^0-9.]/g, '');
-        const parts = raw.split('.');
-        if (parts.length > 2) raw = parts[0] + '.' + parts.slice(1).join('');
+        if (raw.trim() ==='') return 0;
+        //remove white space commas,and currency symbol
+    let cleaned =raw.trim().replace(/[\s,]/g, '').replace(/[^\d.]/g, '');
+    //handle multiple decimal points-keeping only the first
+        const parts = cleaned.split('.');
+        if(parts.length>2){
+            cleaned=parts[0] + '.' + parts.slice(1).join('')
     }
-    const amount = parseFloat(raw);
-    return isNaN(amount) ? 0 : amount;
+    raw.cleaned;}
+    const amount=parsefloat(raw);
+    //validate result
+    if (isNAN(amount) || !isfinite(amount)){return 0;
 }
-
+//round to 2 decimal places for currency (prevents floating-point errors)
+    return math.round(amount * 100) / 100;
+}
 // ─── Helper: apply payment to oldest unpaid bills ────────────────────────────
 async function applyPaymentToBills(tenantId, amount, ownerId) {
     const paymentAmount = parseFloat(amount);
