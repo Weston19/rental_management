@@ -2109,3 +2109,45 @@ tr:hover td {
         font-size: 12px;
     }
 }
+/* ========== BILL ITEMS ========== */
+.bill-item-row {
+    display: flex;
+    gap: 10px;
+    margin-top: 5px;
+    align-items: center;
+}
+
+.bill-item-row .item-name {
+    flex: 2;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.bill-item-row .item-name.rent {
+    background: #f5f5f5;
+    color: #555;
+}
+
+.bill-item-row .item-amount {
+    flex: 1;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.bill-item-row .remove-btn {
+    padding: 5px 10px;
+    background: #e74c3c;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.bill-item-row .remove-btn:hover {
+    background: #c0392b;
+}
