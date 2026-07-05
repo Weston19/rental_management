@@ -227,9 +227,9 @@ router.post('/', async (req, res) => {
              payment_type || 'rent', transaction_id, notes, req.ownerId]
         );
 
-        await applyPaymentToBills(tenantId, numericAmount, req.ownerId);
+        await applyPaymentToBills(tenant_Id, numericAmount, req.ownerId);
         await redis.del(`all_payments:${req.ownerId}`);
-        await redis.del(`tenant_payments:${req.ownerId}:${tenantId}`);
+        await redis.del(`tenant_payments:${req.ownerId}:${tenant_Id}`);
         await redis.del(`all_bills:${req.ownerId}`);
         // Invalidate all financial caches
         await deleteKeysByPattern(`financial_summaries:${req.ownerId}:*`);
