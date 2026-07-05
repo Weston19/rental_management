@@ -3996,35 +3996,46 @@ async function showCreateBillModal() {
     
     const propertyOptions = allProperties.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
     
-    const modalHtml = `<div class="modal-content" style="max-width:600px;">
-        <h3>Create Bill</h3>
-        <label>Select Property</label>
-        <select id="billPropertyId">${propertyOptions}</select>
-        <label>Select Unit (Room)</label>
-        <select id="billRoomId"><option value="">-- Select property first --</option></select>
-        <label>Select Tenant</label>
-        <select id="billTenantId"><option value="">-- Select unit first --</option></select>
-        <label>Bill Month</label>
-        <input type="month" id="billMonth" value="${new Date().toISOString().slice(0,7)}">
-        <label>Previous Balance</label>
-        <input type="number" id="billPreviousBalance" value="0" step="0.01">
-        <label>Bill Items</label>
-        <div id="billItemsContainer">
-            <div class="bill-item-row" style="display:flex; gap:10px; margin-top:5px;">
-                <input type="text" class="item-name" placeholder="Item name (e.g., Rent)" style="flex:2;">
-                <input type="number" class="item-amount" placeholder="Amount" step="0.01" style="flex:1;">
-                <button type="button" class="btn-danger remove-item-btn" style="padding:5px 10px;">✖</button>
+    const modalHtml = `
+        <div class="modal-content" style="max-width:600px;">
+            <h3>Create Bill</h3>
+            
+            <label>Select Property</label>
+            <select id="billPropertyId">${propertyOptions}</select>
+            
+            <label>Select Unit (Room)</label>
+            <select id="billRoomId"><option value="">-- Select property first --</option></select>
+            
+            <label>Select Tenant</label>
+            <select id="billTenantId"><option value="">-- Select unit first --</option></select>
+            
+            <label>Bill Month</label>
+            <input type="month" id="billMonth" value="${new Date().toISOString().slice(0,7)}">
+            
+            <label>Previous Balance</label>
+            <input type="number" id="billPreviousBalance" value="0" step="0.01">
+            
+            <label>Bill Items</label>
+            <div id="billItemsContainer">
+                <!-- Default Rent Item - Pre-filled, no remove button -->
+                <div class="bill-item-row" data-item="rent">
+                    <input type="text" class="item-name rent" value="Rent" readonly>
+                    <input type="number" class="item-amount" placeholder="Amount" step="0.01">
+                </div>
+            </div>
+            
+            <button type="button" class="btn-add" id="addBillItemBtn" style="margin-top:10px;">+ Add Item</button>
+            
+            <div class="modal-buttons">
+                <button class="btn-cancel" id="closeModalBtn">Cancel</button>
+                <button class="btn-save" id="createBillConfirmBtn">Create Bill</button>
             </div>
         </div>
-        <button type="button" class="btn-add" id="addBillItemBtn" style="margin-top:10px;">+ Add Item</button>
-        <div class="modal-buttons">
-            <button class="btn-cancel" id="closeModalBtn">Cancel</button>
-            <button class="btn-save" id="createBillConfirmBtn">Create Bill</button>
-        </div>
-    </div>`;
+    `;
     
     showModal(modalHtml, null);
     
+    // Set up dynamic dropdowns after modal is open
     setTimeout(() => {
         const propertySelect = document.getElementById('billPropertyId');
         const roomSelect = document.getElementById('billRoomId');
@@ -4066,26 +4077,53 @@ async function showCreateBillModal() {
         propertySelect.onchange = updateRooms;
         roomSelect.onchange = updateTenants;
         
-        const addBillBtn = document.getElementById('addBillItemBtn');
-        if (addBillBtn) {
-            addBillBtn.onclick = () => {
-                const container = document.getElementById('billItemsContainer');
-                const newRow = document.createElement('div');
-                newRow.className = 'bill-item-row';
-                newRow.style.cssText = 'display:flex; gap:10px; margin-top:5px;';
-                newRow.innerHTML = `
-                    <input type="text" class="item-name" placeholder="Item name" style="flex:2;">
-                    <input type="number" class="item-amount" placeholder="Amount" step="0.01" style="flex:1;">
-                    <button type="button" class="btn-danger remove-item-btn" style="padding:5px 10px;">✖</button>
-                `;
-                container.appendChild(newRow);
-                newRow.querySelector('.remove-item-btn').onclick = () => newRow.remove();
-            };
-        }
+        // ============================================================
+        // EVENT DELEGATION: Remove bill items
+        // ============================================================
+        const itemsContainer = document.getElementById('billItemsContainer');
         
+        itemsContainer.addEventListener('click', function(e) {
+            const removeBtn = e.target.closest('.remove-btn');
+            if (!removeBtn) return;
+            
+            const row = removeBtn.closest('.bill-item-row');
+            if (!row) return;
+            
+            // Prevent removing the rent item
+            if (row.dataset.item === 'rent') {
+                alert('The Rent item is required and cannot be removed.');
+                return;
+            }
+            
+            if (confirm('Remove this bill item?')) {
+                row.remove();
+            }
+        });
+        
+        // ============================================================
+        // ADD BILL ITEM
+        // ============================================================
+        document.getElementById('addBillItemBtn').onclick = () => {
+            const container = document.getElementById('billItemsContainer');
+            const newRow = document.createElement('div');
+            newRow.className = 'bill-item-row';
+            newRow.innerHTML = `
+                <input type="text" class="item-name" placeholder="Item name">
+                <input type="number" class="item-amount" placeholder="Amount" step="0.01">
+                <button type="button" class="remove-btn">✖</button>
+            `;
+            container.appendChild(newRow);
+            // Focus the item name input for convenience
+            newRow.querySelector('.item-name').focus();
+        };
+        
+        // ============================================================
+        // CREATE BILL - Fix Date Bug
+        // ============================================================
         const createConfirmBtn = document.getElementById('createBillConfirmBtn');
         if (createConfirmBtn) {
             createConfirmBtn.onclick = async () => {
+                // Collect items
                 const items = [];
                 document.querySelectorAll('.bill-item-row').forEach(row => {
                     const itemName = row.querySelector('.item-name')?.value;
@@ -4111,8 +4149,14 @@ async function showCreateBillModal() {
                     return;
                 }
                 
+                // ============================================================
+                // FIX: Create bill date using numeric constructor (local time)
+                // ============================================================
                 const [year, month] = billMonth.split('-');
-                const billMonthDate = new Date(year, month - 1, 1);
+                // Use numeric constructor: Date(year, monthIndex, day)
+                // monthIndex = month - 1 (January = 0)
+                // This creates a local-time date (no timezone shift)
+                const billMonthDate = new Date(parseInt(year), parseInt(month) - 1, 1);
                 
                 const requestBody = {
                     tenant_id: parseInt(tenantId),
@@ -4138,10 +4182,10 @@ async function showCreateBillModal() {
             };
         }
         
+        // Initial load
         updateRooms();
     }, 200);
 }
-
 // ========== AUTO GENERATE MODAL ==========
 function showAutoGenerateModal() {
     const today = new Date();
