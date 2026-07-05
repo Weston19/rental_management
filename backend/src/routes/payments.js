@@ -25,7 +25,7 @@ router.use(auth, blockViewerWrites);
 // ─── Helper: clean and parse amount string ────────────────────────────────────
 function parseAmount(raw) {
     //handle null/undifined/empty
-    if (raw ===null || raw ==== undefined) {
+    if (raw === null || raw ==== undefined) {
         return 0;
     }
     if (typeof raw === 'string') {
@@ -37,13 +37,13 @@ function parseAmount(raw) {
         if(parts.length>2){
             cleaned=parts[0] + '.' + parts.slice(1).join('')
     }
-    raw.cleaned;}
-    const amount=parsefloat(raw);
+    raw = cleaned;}
+    const amount = parsefloat(raw);
     //validate result
-    if (isNAN(amount) || !isfinite(amount)){return 0;
+    if (isNaN(amount) || !isFinite(amount)){return 0;
 }
 //round to 2 decimal places for currency (prevents floating-point errors)
-    return math.round(amount * 100) / 100;
+    return Math.round(amount * 100) / 100;
 }
 // ─── Helper: apply payment to oldest unpaid bills ────────────────────────────
 async function applyPaymentToBills(tenantId, amount, ownerId) {
